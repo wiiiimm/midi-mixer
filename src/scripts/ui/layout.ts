@@ -1,0 +1,111 @@
+import { $ } from '../lib/dom';
+
+// Responsive shell: on narrow screens the sidebar becomes a slide-out drawer and
+// secondary controls move into its Practice / Mix tabs. The same DOM nodes are
+// moved (not cloned), so ids and event handlers keep working.
+type Panel = 'songs' | 'practice' | 'mix';
+
+export function initLayout(): void {
+  const drawer = $('drawer'), scrim = $('scrim'), toggle = $('menuToggle');
+  const main = document.querySelector('main')!;
+  const compact = matchMedia('(max-width: 860px), (max-width: 1000px) and (max-height: 500px)');
+  const tabs = [...drawer.querySelectorAll<HTMLElement>('[role=tab]')];
+  const panels: Record<Panel, HTMLElement> = {songs: $('panel-songs'), practice: $('panel-practice'), mix: $('panel-mix')};
+  const tabsBar = drawer.querySelector<HTMLElement>('.drawer-tabs')!;
+
+  // Remember where each movable block lives on desktop.
+  const movable = [...document.querySelectorAll<HTMLElement>('[data-mobile-home]')].map(el => {
+    const anchor = document.createComment('home:' + el.className);
+    el.before(anchor);
+    let wrap = el;
+    if (el.dataset.mobileHeading) {
+      wrap = document.createElement('div');
+      wrap.className = 'drawer-group';
+      const heading = document.createElement('h3');
+      heading.textContent = el.dataset.mobileHeading;
+      wrap.append(heading);
+    }
+    return {el, anchor, wrap, home: panels[el.dataset.mobileHome as Panel]};
+  });
+
+  const isOpen = () => drawer.classList.contains('open');
+
+  function syncInert() {
+    const open = compact.matches && isOpen();
+    main.inert = open;
+    drawer.inert = compact.matches && !open;
+    scrim.hidden = !open;
+  }
+
+  function setOpen(open: boolean, focus = true) {
+    drawer.classList.toggle('open', open);
+    document.body.classList.toggle('drawer-open', open && compact.matches);
+    toggle.setAttribute('aria-expanded', String(open));
+    syncInert();
+    if (!focus) return;
+    if (open) (drawer.querySelector<HTMLElement>('[role=tab][aria-selected=true]') ?? drawer).focus();
+    else toggle.focus();
+  }
+
+  function arrange() {
+    for (const m of movable) {
+      if (compact.matches) {
+        if (m.wrap !== m.el) m.wrap.append(m.el);
+        m.home.append(m.wrap);
+      } else {
+        m.anchor.after(m.el);
+        if (m.wrap !== m.el) m.wrap.remove();
+      }
+    }
+    if (!compact.matches) setOpen(false, false);
+    syncInert();
+  }
+
+  function selectTab(name: Panel, focus = false) {
+    for (const tab of tabs) {
+      const on = tab.id === 'tab-' + name;
+      tab.setAttribute('aria-selected', String(on));
+      tab.tabIndex = on ? 0 : -1;
+      panels[tab.id.slice(4) as Panel].hidden = !on;
+      if (on && focus) tab.focus();
+    }
+  }
+
+  toggle.addEventListener('click', () => setOpen(!isOpen()));
+  $('closeDrawer').addEventListener('click', () => setOpen(false));
+  scrim.addEventListener('click', () => setOpen(false));
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && isOpen() && !document.querySelector('dialog[open]:modal')) setOpen(false);
+  });
+  tabsBar.addEventListener('click', e => {
+    const tab = (e.target as Element).closest<HTMLElement>('[role=tab]');
+    if (tab) selectTab(tab.id.slice(4) as Panel);
+  });
+  tabsBar.addEventListener('keydown', e => {
+    const step = ({ArrowRight: 1, ArrowLeft: -1} as Record<string, number>)[e.key];
+    if (!step) return;
+    const i = tabs.findIndex(t => t.getAttribute('aria-selected') === 'true');
+    selectTab(tabs[(i + step + tabs.length) % tabs.length].id.slice(4) as Panel, true);
+    e.preventDefault();
+  });
+  // Picking a song should reveal the score again.
+  $('files').addEventListener('click', e => {
+    if (compact.matches && (e.target as Element).closest('button')) setOpen(false, false);
+  });
+  // Swipe left on the open drawer to dismiss it.
+  let swipe: {x: number; y: number} | null = null;
+  drawer.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    swipe = {x: t.clientX, y: t.clientY};
+  }, {passive: true});
+  drawer.addEventListener('touchend', e => {
+    if (!swipe) return;
+    const t = e.changedTouches[0], dx = t.clientX - swipe.x, dy = t.clientY - swipe.y;
+    swipe = null;
+    if (dx < -60 && Math.abs(dx) > Math.abs(dy) * 1.5 && !(e.target as Element).closest('input[type=range]')) setOpen(false, false);
+  }, {passive: true});
+
+  compact.addEventListener('change', arrange);
+  selectTab('songs');
+  arrange();
+}

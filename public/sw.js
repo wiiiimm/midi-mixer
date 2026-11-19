@@ -1,7 +1,7 @@
 'use strict';
 // midi-mixer service worker: offline app shell, cached instrument samples and
 // background sync for sounds that could not be downloaded while offline.
-const VERSION = 'v1';
+const VERSION = 'v2';
 const SHELL = 'shell-' + VERSION;
 const SAMPLES = 'gm-samples';           // kept across versions; samples never change
 const META = 'meta';                    // background-sync queue
@@ -11,19 +11,30 @@ const QUEUE_URL = new URL('__sync-queue', self.registration.scope).href;
 const CORE = [
   './', 'index.html', 'metronome.html', 'manifest.webmanifest',
   'style.css', 'studio.css',
-  'repertoire.js', 'loading.js', 'floating.js', 'sampler.js', 'midi.js', 'clefs.js', 'tick.js',
-  'player.js', 'piano.js', 'rehearsal-tools.js', 'layout.js', 'metro.js',
   'favicon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png',
   'here-from-score.mid', '載我走.mid', '心的小島.mid',
 ].map(path => new URL(encodeURI(path), self.registration.scope).href);
 
-// Hashed bundles (score engraver etc.) are discovered from the built pages.
+// Hashed bundles are discovered from the built pages, then followed through their
+// static and dynamic imports (the score engraver is a separately loaded chunk).
 async function bundleUrls() {
   const urls = new Set();
   for (const page of ['index.html', 'metronome.html']) {
     try {
       const html = await (await fetch(new URL(page, self.registration.scope), {cache: 'no-cache'})).text();
       for (const [, src] of html.matchAll(/(?:src|href)="([^"]*_astro\/[^"]+)"/g)) urls.add(new URL(src, self.registration.scope).href);
+    } catch {}
+  }
+  const queue = [...urls];
+  while (queue.length) {
+    const url = queue.pop();
+    if (!url.endsWith('.js')) continue;
+    try {
+      const code = await (await fetch(url, {cache: 'no-cache'})).text();
+      for (const [, dep] of code.matchAll(/(?:from|import)\s*\(?\s*["'`](\.{1,2}\/[^"'`]+\.js)["'`]/g)) {
+        const resolved = new URL(dep, url).href;
+        if (!urls.has(resolved)) { urls.add(resolved); queue.push(resolved); }
+      }
     } catch {}
   }
   return [...urls];
