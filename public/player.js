@@ -5,11 +5,15 @@ let song,mix=[],pos=0,page=0,rate=1,playing=false,looping=false,ctx,buses=[],mas
 const time=x=>Math.floor(x/60)+':'+String(Math.floor(x%60)).padStart(2,'0');
 const playable=i=>!mix[i].mute&&(!mix.some(m=>m.solo)||mix[i].solo);
 function gain(){buses.forEach((g,i)=>g.gain.setTargetAtTime(playable(i)?mix[i].vol/100:0,ctx.currentTime,.008))}
-function stopNotes(){clearClicks();for(const v of voices){try{v.osc.stop()}catch{}}voices=[]}
+function stopNotes(){clearClicks();for(const v of voices){try{v.osc?v.osc.stop():v.stop()}catch{}}voices=[]}
 const instrumentWaves = ['triangle','sine','sine','sawtooth','triangle','sawtooth','triangle','sawtooth','square','sine','triangle'];
 const instrumentCutoffs = [3600,1800,1600,1300,600,1450,850,2200,1400,3000,2000];
 const instrumentAttacks = [.007,.01,.025,.003,.009,.075,.09,.035,.025,.035,.003];
-function sound(i,n,when,dur){if(dur<=0)return;let t=mix[i].inst,osc=ctx.createOscillator(),amp=ctx.createGain(),filter=ctx.createBiquadFilter();
+function sound(i,n,when,dur){if(dur<=0)return;const program=mix[i].inst;
+ const sampled=gmSampler.play(ctx,program,n.p,.25+.75*n.v,when,dur,buses[i]);
+ if(sampled){const voice={stop:sampled.stop,track:i,pitch:n.p,start:when,end:when+dur};voices.push(voice);sampled.onended=()=>{let j=voices.indexOf(voice);if(j>=0)voices.splice(j,1)};return}
+ if(program<128)gmSampler.load(program);
+ let t=synthPreset(program),osc=ctx.createOscillator(),amp=ctx.createGain(),filter=ctx.createBiquadFilter();
  osc.type=instrumentWaves[t];
  osc.frequency.value=440*2**((n.p-69)/12);filter.type='lowpass';filter.frequency.value=instrumentCutoffs[t];
  if(t===10)osc.frequency.setTargetAtTime(50,when,.025);
@@ -53,8 +57,9 @@ function seek(s){
   display();
   if(engravedView)revealPlayhead(engravedView.playheadX,true);
 }
+async function ensureSounds(){const programs=mix.map(m=>m.inst).filter(p=>p<128&&!gmSampler.ready(p));if(programs.length)await appLoading.during('Loading instrument sounds…',()=>gmSampler.whenReady(programs,12000))}
 async function enableAudio(){if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();master=ctx.createDynamicsCompressor();master.connect(ctx.destination)}if(ctx.state!=='running')await ctx.resume()}
-$('play').onclick=async()=>{if(playing){playing=false;stopNotes();$('play').textContent='▶　Play';return}try{await enableAudio();if(!buses.length){buses=mix.map(()=>{let g=ctx.createGain();g.connect(master);return g});gain()}if(pos>=song.duration)pos=cue;if(looping&&(pos<range()[0]||pos>=range()[1]))pos=range()[0];playing=true;restart();$('play').textContent='Ⅱ　Pause'}catch(e){$('status').textContent=e.message}};
+$('play').onclick=async()=>{if(playing){playing=false;stopNotes();$('play').textContent='▶　Play';return}try{await enableAudio();await ensureSounds();if(!buses.length){buses=mix.map(()=>{let g=ctx.createGain();g.connect(master);return g});gain()}if(pos>=song.duration)pos=cue;if(looping&&(pos<range()[0]||pos>=range()[1]))pos=range()[0];playing=true;restart();$('play').textContent='Ⅱ　Pause'}catch(e){$('status').textContent=e.message}};
 const staffLabels = $('staffLabels');
 const sharpNames = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
 const solfaNames = ['Do','Di','Re','Ri','Mi','Fa','Fi','Sol','Si','La','Li','Ti'];
@@ -409,13 +414,13 @@ function display(){if(!song)return;updateTempoDisplay();const q=song.beat(pos),i
 setInterval(()=>{if(playing&&!engravedView&&followScore.getAttribute('aria-pressed')==='true'){let p=pageFor(barAt(song.beat(pos)));if(p!==page){page=p;score()}}display()},70);
 function groupState(){let sel=mix.filter(m=>m.selected);$('solosel').disabled=!sel.length;$('solosel').textContent=sel.length&&sel.every(t=>t.solo)?'Unsolo selected':'Solo selected';$('group').disabled=!sel.length;$('group').textContent=sel.length&&sel.every(m=>m.mute)?'Unmute selected':'Mute selected';$('all').checked=sel.length===mix.length;$('all').indeterminate=sel.length>0&&sel.length<mix.length}
 function mixer(){$('rows').innerHTML=mix.map((m,i)=>{let name=esc(song.tracks[i].name);return '<tr data-i="'+i+'"><td><input type="checkbox" data-k="selected" aria-label="Select '+name+'" '+(m.selected?'checked':'')+'></td><td><strong><i class="dot" style="background:'+colours[i%colours.length]+'"></i>'+name+'</strong></td><td><button type="button" class="instrument-picker" aria-haspopup="dialog" aria-label="'+name+' instrument: '+esc(instruments[m.inst])+'" data-instrument-select="trackInstrument'+i+'">'+esc(instruments[m.inst])+'</button><select hidden id="trackInstrument'+i+'" data-k="inst">'+instruments.map((v,k)=>'<option value="'+k+'" '+(k===m.inst?'selected':'')+'>'+v+'</option>').join('')+'</select></td><td><input type="range" data-k="vol" aria-label="'+name+' volume" min="0" max="100" value="'+m.vol+'"><output>'+m.vol+'%</output></td><td>'+['solo','mute'].map(k=>'<button title="'+k+' '+name+'" aria-label="'+k+' '+name+'" data-k="'+k+'" aria-pressed="'+m[k]+'">'+k[0].toUpperCase()+'</button>').join('')+'</td></tr>'}).join('');groupState();gain()}
-$('rows').oninput=e=>{let k=e.target.dataset.k,m=mix[e.target.closest('tr').dataset.i];if(k==='vol'){m.vol=+e.target.value;e.target.nextElementSibling.value=m.vol+'%';gain()}if(k==='inst'){m.inst=+e.target.value;if(playing)restart()}if(k==='selected'){m.selected=e.target.checked;groupState()}};
+$('rows').oninput=e=>{let k=e.target.dataset.k,m=mix[e.target.closest('tr').dataset.i];if(k==='vol'){m.vol=+e.target.value;e.target.nextElementSibling.value=m.vol+'%';gain()}if(k==='inst'){m.inst=+e.target.value;if(playing)appLoading.during('Loading '+instruments[m.inst]+'…',()=>gmSampler.whenReady([m.inst],12000)).then(restart);else gmSampler.load(m.inst)}if(k==='selected'){m.selected=e.target.checked;groupState()}};
 $('rows').onclick=e=>{let k=e.target.dataset.k;if(k==='mute'||k==='solo'){let m=mix[e.target.closest('tr').dataset.i];m[k]=!m[k];e.target.setAttribute('aria-pressed',m[k]);gain();groupState()}};
 $('group').onclick=()=>{let sel=mix.filter(m=>m.selected),v=!sel.every(m=>m.mute);sel.forEach(m=>m.mute=v);mixer()};$('all').onchange=e=>{mix.forEach(m=>m.selected=e.target.checked);mixer()};
 function reset(){mix=song.tracks.map(t=>({inst:t.inst,vol:80,solo:false,mute:false,selected:false}));song.mix=mix;mixer()}$('reset').onclick=()=>{reset();if(playing)restart()};
 function library(){$('filecount').textContent=songs.length;$('files').innerHTML=songs.map((s,i)=>'<button data-index="'+i+'" class="'+(s===song?'active':'')+'"><span class="fileicon">♫</span><span>'+esc(s.title)+'<small>'+s.tracks.length+' tracks · '+time(s.duration)+'</small></span></button>').join('');filterSongs()}
 $('files').onclick=e=>{const b=e.target.closest('button');if(!b)return;const next=songs[+b.dataset.index];if(next===song)return;appLoading.during('Loading '+next.title+'…',()=>select(next))};
-function select(s){playing=false;stopNotes();buses.forEach(g=>g.disconnect());buses=[];song=s;pos=page=cue=0;$('startBar').max=s.bars.length-1;$('startBar').value=1;scoreWorkspace.scrollTop=0;looping=false;$('loop').setAttribute('aria-pressed',false);$('play').textContent='▶　Play';$('a').max=$('b').max=s.bars.length-1;$('a').value=1;$('b').value=Math.min(4,s.bars.length-1);$('seek').max=s.duration;$('title').textContent=s.title;$('meta').textContent=s.tracks.length+' tracks　·　'+(s.bars.length-1)+' bars';if(s.mix){mix=s.mix;mixer()}else reset();library();score();display();window.dispatchEvent(new Event("pianosong"))}
+function select(s){playing=false;stopNotes();buses.forEach(g=>g.disconnect());buses=[];song=s;pos=page=cue=0;$('startBar').max=s.bars.length-1;$('startBar').value=1;scoreWorkspace.scrollTop=0;looping=false;$('loop').setAttribute('aria-pressed',false);$('play').textContent='▶　Play';$('a').max=$('b').max=s.bars.length-1;$('a').value=1;$('b').value=Math.min(4,s.bars.length-1);$('seek').max=s.duration;$('title').textContent=s.title;$('meta').textContent=s.tracks.length+' tracks　·　'+(s.bars.length-1)+' bars';if(s.mix){mix=s.mix;mixer()}else reset();library();score();display();mix.forEach(m=>gmSampler.load(m.inst));window.dispatchEvent(new Event("pianosong"))}
 function moveScore(direction){
   if(engravedView){
     scoreViewport.scrollBy({left:direction*scoreViewport.clientWidth*.85,behavior:'smooth'});

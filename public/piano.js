@@ -46,8 +46,10 @@
   let sustainEnabled = false;
   const buttons = [];
   const keysByPitch = new Map();
-  // The last mixer preset is a pitch sweep for MIDI percussion.
-  instruments.slice(0, -1).forEach((name, index) => voiceSelect.add(new Option(name, index)));
+  // All 128 General MIDI sounds (the drum kit is for MIDI percussion tracks only).
+  gmSampler.names.forEach((name, index) => voiceSelect.add(new Option(name, index)));
+  voiceSelect.addEventListener('input', () => gmSampler.load(Number(voiceSelect.value)));
+  gmSampler.load(0);
   const sustainLevels = [.075, .06, .15, .045, .09, .12, .13, .12, .10, .14];
   let painted = new Map();
   function updatePlayback() {
@@ -84,6 +86,7 @@
     if (![...held.values()].some(v => v.key === voice.key) && !sustained.has(voice.key)) {
       voice.key.classList.remove('held');
     }
+    if (voice.sample) { voice.sample.stop(); return; }
     if (!voice.osc) return;
     const now = ctx.currentTime;
     voice.amp.gain.cancelScheduledValues(now);
@@ -109,7 +112,7 @@
 
   async function press(id, key) {
     if (held.has(id)) return;
-    const preset = Number(voiceSelect.value);
+    const program = Number(voiceSelect.value), preset = synthPreset(program);
     const voice = {key};
     held.set(id, voice);
     const previous = sustained.get(key);
@@ -122,6 +125,9 @@
       await enableAudio();
       if (held.get(id) !== voice && sustained.get(key) !== voice) return;
       const now = ctx.currentTime;
+      voice.sample = gmSampler.play(ctx, program, Number(key.dataset.pitch), .8, now, null, master);
+      if (voice.sample) return;
+      gmSampler.load(program);
       const osc = ctx.createOscillator(), amp = ctx.createGain(), filter = ctx.createBiquadFilter();
       voice.osc = osc;
       voice.amp = amp;

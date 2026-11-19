@@ -1,6 +1,6 @@
 'use strict';
-const instruments=['Piano','Electric piano','Organ','Guitar','Bass','Strings','Choir','Brass','Reed','Flute','Percussion'];
-function instrument(program,ch){return ch===9?10:program<4?0:program<16?1:program<24?2:program<32?3:program<40?4:program<52?5:program<56?6:program<64?7:program<72?8:program<80?9:1}
+const instruments=[...gmSampler.names,'Drum kit'];
+function instrument(program,ch){return ch===9?128:program&127}
 function prepare(title,tracks,tempos=[{q:0,us:500000}],meters=[{q:0,n:4,d:4}],keys=[{q:0,sf:0,tonic:0}],markers=[]){
  keys.sort((a,b)=>a.q-b.q);
  tempos.sort((a,b)=>a.q-b.q);meters.sort((a,b)=>a.q-b.q);

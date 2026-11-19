@@ -11,6 +11,11 @@ const url = Astro.site ? new URL(path, Astro.site).href : undefined;
 <meta name="apple-mobile-web-app-title" content="midi-mixer">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="service-worker" content={import.meta.env.PROD ? 'on' : 'off'}>
 {url && <link rel="canonical" href={url}>}
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="midi-mixer">

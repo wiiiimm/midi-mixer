@@ -442,3 +442,12 @@ select:disabled{opacity:.45;cursor:default}
 .octaves{align-items:center}
 .keys-range{min-width:64px;text-align:center;font-size:12px;font-weight:500;color:var(--muted);font-variant-numeric:tabular-nums}
 .pianoscroll{scroll-behavior:auto}
+.picker-group{position:sticky;top:0;z-index:1;padding:14px 14px 6px;font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);background:#2c2c2e;border-bottom:.5px solid #3a3a3c}
+.picker-group:first-child{padding-top:10px}
+.piano .instrument-picker{max-width:230px}
+
+/* ───────────── App toast (offline / update) ───────────── */
+.app-toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:90;display:flex;align-items:center;gap:12px;max-width:calc(100vw - 24px);padding:10px 10px 10px 16px;border-radius:14px;background:#2c2c2ef2;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);color:#f5f5f7;font-size:14px;box-shadow:0 10px 30px #0009;animation:toast-in .25s ease-out}
+.app-toast button{background:var(--accent);color:#fff;font-weight:600;height:32px;padding:0 14px;border-radius:8px}
+.app-toast:not(:has(button:not([hidden]))){padding-right:16px}
+@keyframes toast-in{from{opacity:0;transform:translate(-50%,10px)}}

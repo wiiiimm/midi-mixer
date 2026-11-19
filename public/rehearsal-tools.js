@@ -154,14 +154,27 @@
       .map(option=>({option,score:rank(option.text.toLowerCase(),words)}))
       .filter(match=>Number.isFinite(match.score))
       .sort((a,b)=>a.score-b.score);
-    results.replaceChildren(...matches.map(({option})=>{
+    // With no filter, show the General MIDI families as section headings.
+    const grouped=!words.length;
+    let family=-1;
+    const rows=[];
+    for (const {option} of matches) {
+      const value=Number(option.value), group=value>=128 ? 16 : Math.floor(value/8);
+      if (grouped && group!==family) {
+        family=group;
+        const heading=document.createElement('div');
+        heading.className='picker-group';
+        heading.textContent=group===16 ? 'Drums' : gmSampler.families[group];
+        rows.push(heading);
+      }
       const button=document.createElement('button');
       button.type='button';
       button.dataset.value=option.value;
       button.textContent=option.text;
       button.setAttribute('aria-pressed',option.selected);
-      return button;
-    }));
+      rows.push(button);
+    }
+    results.replaceChildren(...rows);
     $('instrumentEmpty').hidden=matches.length>0;
   }
 
