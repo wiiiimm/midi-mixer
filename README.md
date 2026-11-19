@@ -29,9 +29,9 @@ The [standalone metronome](http://127.0.0.1:8000/metronome.html) also works with
 
 Play the on-screen keys with a mouse, touch or the computer shortcuts shown on the keys. **Shortcut octave** changes where the computer shortcuts start. Use **−8ve** and **+8ve** to scroll the piano by an octave. The computer mapping uses **A–'** for naturals and **W–P** for sharps and flats. Press **Z** or **X** to shift its octave. The sidebar lists the playback and piano shortcuts.
 
-Use **Sound** to search for and choose Piano, Electric piano, Organ, Guitar, Bass, Strings, Choir, Brass, Reed or Flute. The selection applies to the next notes you play.
+Use **Sound** to choose any of the 128 General MIDI instruments, grouped by family, or type to filter the list. The same picker sets each track’s instrument in the mixer. Sampled sounds download the first time you use them; until then, or if a download fails, a built-in synth plays instead. The selection applies to the next notes you play.
 
-Turn on **Sustain** to keep notes sounding after you let go, so you can build a chord one note at a time. Play a sustained note again to retrigger it. Choose **Release notes** to clear the chord and keep Sustain on. Turning Sustain off releases notes you’ve already let go of.
+Turn on **Sustain** to keep notes sounding after you let go, so you can build a chord one note at a time. Play a sustained note again to retrigger it. Turn Sustain off to release the notes you’ve let go of.
 
 ## Score engraving
 
@@ -45,11 +45,27 @@ The PDFs in `reference/scores/` are kept outside the app’s public assets. The 
 
 Imported files stay in your browser’s IndexedDB and are restored when you revisit the same address. A different browser profile, hostname or port has its own library. Clearing site data removes the imported copies.
 
+In production builds a service worker keeps the app, the bundled songs and any instrument sounds you have used available offline. Sounds that fail to download while offline are fetched again when the connection returns.
+
 ## Build and preview
 
 ```sh
+npm run check    # strict TypeScript and Astro diagnostics
 npm run build
 npm run preview
 ```
 
-Astro writes the static site to `dist/`. The pages live in `src/pages/`. Browser scripts, styles and bundled MIDI files live in `public/`.
+Astro writes the static site to `dist/`.
+
+| Path | Contents |
+| --- | --- |
+| `src/pages/` | The studio (`index.astro`) and the standalone metronome. |
+| `src/components/` | Astro components for the page markup, the logo and icons. |
+| `src/scripts/main.ts` | Studio entry point: calls each module’s `init` function in order. |
+| `src/scripts/studio/` | Shared state, playback scheduling, transport, mixer, playlist and score view. |
+| `src/scripts/audio/` | Audio context and built-in synth, General MIDI samples and the metronome click. |
+| `src/scripts/midi/` | MIDI file parsing and the bundled song list. |
+| `src/scripts/score/` | Verovio engraving (loaded on demand as its own chunk) and fallback clef shapes. |
+| `src/scripts/tools/` | Practice piano, tuning fork and metronome. |
+| `src/scripts/ui/` | Loading screen, responsive drawer, floating windows, instrument picker and offline support. |
+| `public/` | Styles, bundled MIDI files, icons, the web app manifest and the service worker. |
