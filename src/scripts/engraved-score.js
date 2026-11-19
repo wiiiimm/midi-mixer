@@ -18,11 +18,11 @@ function spell(pitch, sf) {
   return { letter, accidental, octave: Math.floor(pitch / 12) - 1 };
 }
 
-function splitDuration(start, end, measureStart, beatLength, isRest) {
+function splitDuration(start, end, measureStart, beatLength) {
   const fragments = [];
   while (start < end) {
     const offset = (start - measureStart) % beatLength;
-    const limit = isRest || offset ? Math.min(end - start, beatLength - offset) : end - start;
+    const limit = offset ? Math.min(end - start, beatLength - offset) : end - start;
     const [length, dur, dots] = durations.find(([length]) => length <= limit);
     fragments.push({ start, end: start + length, dur, dots });
     start += length;
@@ -30,7 +30,28 @@ function splitDuration(start, end, measureStart, beatLength, isRest) {
   return fragments;
 }
 
-function makeVoices(track) {
+function shortenedDuration(note, ppq) {
+  // Some notation exports shorten notes to 95% of the written value, minus one MIDI tick.
+  const raw = note.len * ppq;
+  const grid = ppq / 8;
+  const written = Math.round((raw + 1) / (.95 * grid)) * grid;
+  return written > 0 && Math.abs(written * .95 - 1 - raw) <= 1 ? tick(written / ppq) : 0;
+}
+
+function usesShortenedDurations(tracks, ppq) {
+  if (!ppq) return false;
+  let checked = 0, matches = 0;
+  for (const track of tracks) {
+    for (const note of track.notes) {
+      if (note.len < .1) continue;
+      checked++;
+      if (shortenedDuration(note, ppq)) matches++;
+    }
+  }
+  return checked >= 8 && matches / checked >= .85;
+}
+
+function makeVoices(track, shortenedPpq) {
   const groups = new Map();
   for (const note of track.notes) {
     const start = tick(note.q);
@@ -38,7 +59,8 @@ function makeVoices(track) {
     const [nearest] = durations.reduce((best, item) =>
       Math.abs(item[0] - raw) < Math.abs(best[0] - raw) ? item : best
     );
-    const length = Math.abs(nearest - raw) <= raw * .12 ? nearest : Math.max(1, Math.round(raw));
+    const restored = shortenedPpq ? shortenedDuration(note, shortenedPpq) : 0;
+    const length = restored || (Math.abs(nearest - raw) <= raw * .12 ? nearest : Math.max(1, Math.round(raw)));
     const key = start + ':' + length;
     if (!groups.has(key)) groups.set(key, {start, end:start + length, notes:new Map()});
     groups.get(key).notes.set(note.p, note);
@@ -68,7 +90,7 @@ function writeLayer(events, first, context, staff, layer, labels, timing) {
   let position = start;
   function rests(to) {
     if (to <= position) return;
-    for (const fragment of splitDuration(position, to, start, beatLength, true)) {
+    for (const fragment of splitDuration(position, to, start, beatLength)) {
       content.push({ ...fragment, xml: '<rest dur="' + fragment.dur + '"' +
         (fragment.dots ? ' dots="1"' : '') + '/>' });
     }
@@ -85,7 +107,7 @@ function writeLayer(events, first, context, staff, layer, labels, timing) {
       for(const cue of note.lyricCues??[])lyrics.set(tick(cue.q),cue.text);
     }
     const cuts=[from,...[...lyrics.keys()].filter(at=>from<at&&at<to).sort((a,b)=>a-b),to];
-    const fragments=cuts.slice(1).flatMap((end,index)=>splitDuration(cuts[index],end,start,beatLength,false));
+    const fragments=cuts.slice(1).flatMap((end,index)=>splitDuration(cuts[index],end,start,beatLength));
     for (const fragment of fragments) {
       const { start: onset, end: release, dur, dots } = fragment;
       const id = 'midi-n-' + staff + '-' + layer + '-' + onset;
@@ -160,7 +182,10 @@ function staffDefinition(track,index) {
 
 const scores = new WeakMap();
 function encodeScore(song, mode) {
-  if (!scores.has(song)) scores.set(song,song.tracks.map(makeVoices));
+  if (!scores.has(song)) {
+    const shortenedPpq = usesShortenedDurations(song.tracks,song.ppq) ? song.ppq : 0;
+    scores.set(song,song.tracks.map(track=>makeVoices(track,shortenedPpq)));
+  }
   const voiceTracks = scores.get(song);
   const measures = new Map(), timing = new Map();
   const last = song.bars.length-1;

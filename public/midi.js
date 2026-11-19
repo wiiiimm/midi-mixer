@@ -43,6 +43,6 @@ function parseMidi(bytes,title){
    if(note)(note.lyricCues??=[]).push({q,text});
  }
  t.name=(name||'Track '+(tracks.length+1))+(channels.size>1?' · Ch '+(ch+1):'');tracks.push(t)}}
- return prepare(title,tracks,tm,ms,keys,markers)
+ return {...prepare(title,tracks,tm,ms,keys,markers),ppq}
 }
 const songs = [];
