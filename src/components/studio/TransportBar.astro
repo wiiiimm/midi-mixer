@@ -1,0 +1,11 @@
+---
+// Playback controls, song title, position readouts and tempo.
+import MetronomeIcon from '../MetronomeIcon.astro';
+---
+  <header class="transport">
+    <button id="menuToggle" class="menu-toggle" type="button" aria-controls="drawer" aria-expanded="false" aria-label="Open menu"><span></span><span></span><span></span></button>
+    <div class="cluster playback"><button id="home" aria-label="Return to start cue">Ⅰ◀</button><button id="play">▶ Play</button><button id="click" aria-pressed="false"><MetronomeIcon /> <span class="label">Click</span></button></div>
+    <div class="song"><h1 id="title"></h1><small id="meta"></small></div>
+    <div class="readouts"><div class="readout"><small>BAR : BEAT</small><strong id="beatpos">1 : 1</strong></div><div class="readout"><small>TIME</small><span id="clock"></span></div></div>
+    <div class="cluster tempo-group" data-mobile-home="practice" data-mobile-heading="Tempo"><label>BPM <input type="number" id="tempoBpm" min="30" max="190" step="any" aria-label="Playback tempo in BPM"></label><label>Speed <select id="rate" aria-label="Playback speed"></select></label></div>
+  </header>

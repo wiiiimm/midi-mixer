@@ -1,0 +1,10 @@
+---
+// Shared General MIDI instrument picker for tracks and the piano.
+---
+<dialog id="instrumentDialog" aria-labelledby="instrumentTitle">
+  <form method="dialog" class="instrument-heading"><h2 id="instrumentTitle">Choose an instrument</h2><button aria-label="Close instrument picker">×</button></form>
+  <label for="instrumentSearch" class="visually-hidden">Filter instruments</label>
+  <input type="search" id="instrumentSearch" placeholder="Filter (optional)" autocomplete="off">
+  <div id="instrumentResults"></div>
+  <p id="instrumentEmpty" role="status" hidden>No matching instruments.</p>
+</dialog>

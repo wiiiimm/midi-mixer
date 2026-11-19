@@ -1,83 +1,51 @@
 ---
-import MetronomeIcon from '../components/MetronomeIcon.astro';
-import TuningForkIcon from '../components/TuningForkIcon.astro';
-import KeysLogo from '../components/KeysLogo.astro';
 import Meta from '../components/Meta.astro';
+import AppToast from '../components/studio/AppToast.astro';
+import BusyOverlay from '../components/studio/BusyOverlay.astro';
+import InstrumentPickerDialog from '../components/studio/InstrumentPickerDialog.astro';
+import MetronomePanel from '../components/studio/MetronomePanel.astro';
+import RehearsalToolbar from '../components/studio/RehearsalToolbar.astro';
+import ScoreViewport from '../components/studio/ScoreViewport.astro';
+import SidebarDrawer from '../components/studio/SidebarDrawer.astro';
+import SoundCheckPiano from '../components/studio/SoundCheckPiano.astro';
+import SplashScreen from '../components/studio/SplashScreen.astro';
+import TrackMixer from '../components/studio/TrackMixer.astro';
+import TransportBar from '../components/studio/TransportBar.astro';
+import TuningForkPanel from '../components/studio/TuningForkPanel.astro';
 ---
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><Meta title="midi-mixer · Rehearsal Studio" description="Rehearse your part in the browser: mix and solo MIDI tracks, follow an engraved score with note or sol-fa labels, loop bars, and sound-check with a piano, metronome and tuning fork." /><title>midi-mixer · Rehearsal Studio</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="studio.css"></head><body>
-<div id="splash" class="splash" role="status" aria-live="polite"><div class="splash-card"><KeysLogo play="loop" class="logo" /><strong>midi-mixer</strong><small>Rehearsal Studio</small><span class="spinner" aria-hidden="true"></span><span id="splashStatus">Loading songs and notation…</span></div></div>
-<aside id="drawer" class="sidebar" aria-label="Library and rehearsal settings">
-  <div class="brand"><KeysLogo play="hover" class="logo" /><div>midi-mixer<small>Rehearsal Studio</small></div><button id="closeDrawer" class="drawer-close" type="button" aria-label="Close menu">×</button></div>
-  <div class="drawer-tabs" role="tablist" aria-label="Menu sections">
-    <button type="button" role="tab" id="tab-songs" aria-controls="panel-songs" aria-selected="true">Songs</button>
-    <button type="button" role="tab" id="tab-practice" aria-controls="panel-practice" aria-selected="false">Practice</button>
-    <button type="button" role="tab" id="tab-mix" aria-controls="panel-mix" aria-selected="false">Mix</button>
-  </div>
-  <section id="panel-songs" class="drawer-panel songs-panel" role="tabpanel" aria-labelledby="tab-songs">
-    <button id="import" class="import">＋ Load MIDI files</button><input hidden type="file" id="upload" accept=".mid,.midi,audio/midi" multiple>
-    <input type="search" placeholder="Filter songs…" aria-label="Filter songs" id="filter">
-    <div class="libhead">Rehearsal playlist <span id="filecount"></span></div>
-    <nav id="files"></nav>
-    <footer class="sidebar-footer">
-      <details class="shortcut-guide" open><summary>Keyboard shortcuts</summary>
-        <dl><div><dt>Play / Pause</dt><dd><kbd>Space</kbd></dd></div>
-        <div><dt>Natural notes</dt><dd><kbd>A–'</kbd></dd></div>
-        <div><dt>Sharps / flats</dt><dd><kbd>W–P</kbd></dd></div>
-        <div><dt>Octave down / up</dt><dd><kbd>Z</kbd> <kbd>X</kbd></dd></div>
-        <div><dt>Return to cue</dt><dd><kbd>R</kbd></dd></div>
-        <div><dt>Toggle loop</dt><dd><kbd>Shift</kbd> <kbd>L</kbd></dd></div></dl>
-      </details>
-      <div class="local">Imported files stay on this device.</div>
-      <a class="repo-link" href="https://github.com/wiiiimm/midi-mixer-codex" target="_blank" rel="noopener noreferrer"><svg viewBox="0 0 16 16" aria-hidden="true" focusable="false"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>View source on GitHub</a>
-    </footer>
-  </section>
-  <section id="panel-practice" class="drawer-panel practice-panel" role="tabpanel" aria-labelledby="tab-practice" hidden></section>
-  <section id="panel-mix" class="drawer-panel mix-panel" role="tabpanel" aria-labelledby="tab-mix" hidden></section>
-</aside>
-<div id="scrim" class="scrim" hidden></div>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <Meta title="midi-mixer · Rehearsal Studio" description="Rehearse your part in the browser: mix and solo MIDI tracks, follow an engraved score with note or sol-fa labels, loop bars, and sound-check with a piano, metronome and tuning fork." />
+  <title>midi-mixer · Rehearsal Studio</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="studio.css">
+</head>
+<body>
+<SplashScreen />
+<SidebarDrawer />
 <main>
-  <header class="transport">
-    <button id="menuToggle" class="menu-toggle" type="button" aria-controls="drawer" aria-expanded="false" aria-label="Open menu"><span></span><span></span><span></span></button>
-    <div class="cluster playback"><button id="home" aria-label="Return to start cue">Ⅰ◀</button><button id="play">▶ Play</button><button id="click" aria-pressed="false"><MetronomeIcon /> <span class="label">Click</span></button></div>
-    <div class="song"><h1 id="title"></h1><small id="meta"></small></div>
-    <div class="readouts"><div class="readout"><small>BAR : BEAT</small><strong id="beatpos">1 : 1</strong></div><div class="readout"><small>TIME</small><span id="clock"></span></div></div>
-    <div class="cluster tempo-group" data-mobile-home="practice" data-mobile-heading="Tempo"><label>BPM <input type="number" id="tempoBpm" min="30" max="190" step="any" aria-label="Playback tempo in BPM"></label><label>Speed <select id="rate" aria-label="Playback speed"></select></label></div>
-  </header>
-  <div class="toolbar">
-    <div class="cluster loop-group" data-mobile-home="practice" data-mobile-heading="Loop"><button id="loop" aria-pressed="false">⟳ Loop</button><label>A <input id="a" type="number" min="1" value="1"></label><label>B <input id="b" type="number" min="1" value="4"></label></div>
-    <div class="cluster cue-controls" data-mobile-home="practice" data-mobile-heading="Cue"><label>Start bar <input id="startBar" type="number" min="1" value="1" disabled></label><button id="cueHere" type="button" disabled>Cue Here</button></div>
-    <div class="cluster staff-group" data-mobile-home="practice" data-mobile-heading="Score"><label>Staff labels <select id="staffLabels"><option value="none">None</option><option value="note">Note names</option><option value="solfa">Sol-fa</option></select></label></div>
-    <div class="cluster view-tools"><div class="pager"><button id="prev" aria-label="Scroll to earlier bars">‹</button><span id="bars"></span><button id="next" aria-label="Scroll to later bars">›</button></div><button id="followScore" type="button" aria-pressed="true">Follow</button><button id="keytoggle" aria-pressed="true">▥ <span class="label">Keys</span></button><span class="tool-divider" aria-hidden="true"></span><button id="popmetro" class="tool-button" aria-haspopup="dialog" aria-controls="metroPanel" aria-expanded="false" title="Metronome"><MetronomeIcon /> <span class="label">Metronome</span></button><button id="openTuning" class="tool-button" type="button" aria-haspopup="dialog" aria-controls="tuningFork" aria-expanded="false" title="Tuning fork"><TuningForkIcon /> <span class="label">Tuning fork</span></button></div>
-  </div>
+  <TransportBar />
+  <RehearsalToolbar />
   <input id="seek" type="range" min="0" step=".01" value="0" aria-label="Playback position">
-  <div class="workspace"><div class="lanes">
-    <section class="strip" data-mobile-home="mix"><h2>Track mixer</h2>
-      <div class="mix-tools"><label><input id="all" type="checkbox"> All tracks</label><button id="reset">Reset mix</button><button id="group" disabled>Mute selected</button><button id="solosel" disabled>Solo selected</button></div>
-      <table><tbody id="rows"></tbody></table></section>
-    <div id="scorewrap"><h2 id="engravedTitle" hidden></h2><div id="scoreViewport" tabindex="0" role="region" aria-label="Scrollable MIDI score" hidden><div id="engravedScore"></div></div><svg id="score" hidden aria-label="Score. Click a position to start there."></svg></div>
-  </div><output id="status" role="status"></output></div>
-  <section class="piano"><div class="panelhead"><h2>▥　Sound check piano</h2><div class="octaves"><button id="lowerKeys" aria-label="Scroll one octave lower">−8ve</button><span id="keysRange" class="keys-range" aria-live="polite"></span><button id="higherKeys" aria-label="Scroll one octave higher">+8ve</button></div><button id="sustain" type="button" aria-pressed="false" title="Hold notes after release. Turn off to release them.">Sustain</button><div class="piano-sound"><button type="button" class="instrument-picker" aria-haspopup="dialog" data-instrument-select="pianoVoice">Sound: Acoustic grand piano</button><select id="pianoVoice" hidden></select></div><label class="shortcut-octave">Shortcut octave <select id="octave" aria-label="Piano starting octave"></select></label></div><div class="pianoscroll"><div id="keys" aria-label="Practice piano keys"></div></div></section>
-<div id="scoreBusy" class="score-busy" role="status" aria-live="polite" hidden><span class="spinner" aria-hidden="true"></span><span id="scoreBusyText">Loading…</span></div></main><div id="appToast" class="app-toast" role="status" aria-live="polite" hidden><span id="appToastText"></span><button id="appToastAction" type="button" hidden></button></div><dialog id="metroPanel" class="floating" aria-labelledby="metroTitle"><div id="metroHandle" class="float-handle"><strong id="metroTitle"><MetronomeIcon /> Metronome</strong><button id="closeMetro" class="float-close" aria-label="Close metronome">×</button></div><div id="metroBody"></div></dialog>
-<dialog id="tuningFork" class="floating" aria-labelledby="tuningTitle">
-  <div class="float-handle"><strong id="tuningTitle"><TuningForkIcon /> Tuning fork</strong><button class="float-close" aria-label="Close tuning fork">×</button></div>
-  <div class="float-body tuner">
-    <div class="tuner-readout" aria-live="polite"><strong id="tuningNote">A4</strong><output id="tuningFrequency" for="tuningPitch"></output></div>
-    <div class="tuner-keys" id="tuningKeys" role="group" aria-label="Choose a note"></div>
-    <div class="tuner-octave"><button id="tuningOctDown" type="button" aria-label="Octave down">−</button><span>Octave <b id="tuningOctave">4</b></span><button id="tuningOctUp" type="button" aria-label="Octave up">+</button></div>
-    <button id="tuningPlay" type="button">Play tone</button>
-    <select id="tuningPitch" hidden aria-hidden="true" tabindex="-1"></select>
-    <p class="tuner-hint">Tap a key to hear it · ← → semitone · ↑ ↓ octave</p>
-    <p id="tuningError" role="status"></p>
+  <div class="workspace">
+    <div class="lanes">
+      <TrackMixer />
+      <ScoreViewport />
+    </div>
+    <output id="status" role="status"></output>
   </div>
-</dialog>
-<dialog id="instrumentDialog" aria-labelledby="instrumentTitle">
-  <form method="dialog" class="instrument-heading"><h2 id="instrumentTitle">Choose an instrument</h2><button aria-label="Close instrument picker">×</button></form>
-  <label for="instrumentSearch" class="visually-hidden">Filter instruments</label>
-  <input type="search" id="instrumentSearch" placeholder="Filter (optional)" autocomplete="off">
-  <div id="instrumentResults"></div>
-  <p id="instrumentEmpty" role="status" hidden>No matching instruments.</p>
-</dialog>
-<script is:inline src="repertoire.js"></script><script is:inline src="loading.js"></script><script is:inline src="floating.js"></script><script is:inline src="sampler.js"></script><script is:inline src="midi.js"></script><script is:inline src="clefs.js"></script><script is:inline src="tick.js"></script><script is:inline src="player.js"></script><script is:inline src="piano.js"></script><script is:inline src="rehearsal-tools.js"></script><script is:inline src="layout.js"></script><script is:inline src="pwa.js"></script></body></html>
+  <SoundCheckPiano />
+  <BusyOverlay />
+</main>
+<AppToast />
+<MetronomePanel />
+<TuningForkPanel />
+<InstrumentPickerDialog />
+<script is:inline src="repertoire.js"></script><script is:inline src="loading.js"></script><script is:inline src="floating.js"></script><script is:inline src="sampler.js"></script><script is:inline src="midi.js"></script><script is:inline src="clefs.js"></script><script is:inline src="tick.js"></script><script is:inline src="player.js"></script><script is:inline src="piano.js"></script><script is:inline src="rehearsal-tools.js"></script><script is:inline src="layout.js"></script><script is:inline src="pwa.js"></script></body>
+</html>
 
 <script>
   import "../scripts/engraved-score.js";

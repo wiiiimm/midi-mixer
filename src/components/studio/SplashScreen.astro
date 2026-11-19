@@ -1,0 +1,5 @@
+---
+// Startup splash; hidden by the loading module once songs and the score engraver are ready.
+import KeysLogo from '../KeysLogo.astro';
+---
+<div id="splash" class="splash" role="status" aria-live="polite"><div class="splash-card"><KeysLogo play="loop" class="logo" /><strong>midi-mixer</strong><small>Rehearsal Studio</small><span class="spinner" aria-hidden="true"></span><span id="splashStatus">Loading songs and notation…</span></div></div>
