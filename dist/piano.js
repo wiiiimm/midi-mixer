@@ -96,6 +96,7 @@
     const range = Array.from({length: high-low+1}, (_,i) => low+i);
     const whites = range.filter(n => !pitches[n % 12].includes('♯')).length;
     keyboard.style.minWidth = (whites * 29) + 'px';
+    keyboard.style.maxWidth = (whites * 48) + 'px';
     let whiteCount = 0;
     range.forEach(midi => {
       const i = midi-start, letter = shortcuts[i] || "";

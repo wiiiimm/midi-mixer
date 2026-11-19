@@ -2,3 +2,27 @@
 main{display:flex;flex-direction:column;max-width:none;margin:0;padding:0;min-height:0}button,select,#popmetro{border:1px solid #334459;background:#1b293e;color:#e5effa;font-size:13px;border-radius:5px;padding:5px 8px}button[aria-pressed=true]{background:#15483f;border-color:#2e826d;color:#92f5cb}.transport,.toolbar{flex:none;background:var(--bar);border:0;border-bottom:1px solid var(--line);padding:8px 12px;gap:10px;display:flex;align-items:center;flex-wrap:wrap}.cluster,.transport label,.toolbar label{display:flex;align-items:center;gap:5px}.transport label,.toolbar label{font-size:12px;color:var(--muted)}.transport input[type=number]{width:45px}.transport #play{min-width:70px;background:#1bc798;color:#051c17;padding:7px 10px}.transport h1{font-size:17px;letter-spacing:-.3px}.transport small{font-size:11px;color:var(--muted)}.readout{display:grid;gap:2px;font:13px ui-monospace,monospace}.readout strong{color:#72d7ef}#popmetro{text-decoration:none;margin-left:auto}#seek{width:100%;margin:0;flex:none;height:9px;accent-color:#28c6b0}.pager{margin-left:auto;color:#c1d4e6}.workspace{flex:1;min-height:0;overflow:auto}.lanes{display:grid;grid-template-columns:188px minmax(520px,1fr);min-width:708px}.strip{background:#111d30}.strip h2{height:32px;margin:0;padding:8px 10px;background:var(--bar)}.strip table,.strip tbody{display:block}.strip tr{display:grid;grid-template-columns:18px 1fr auto;grid-template-rows:22px 23px 20px;align-content:center;gap:1px 3px;height:78px;border-bottom:1px solid #354154;padding:2px 7px}.strip td{border:0;padding:0;width:auto;min-width:0;align-self:center}.strip td:nth-child(2){overflow:hidden;text-overflow:ellipsis;font-size:13px}.strip td:nth-child(5){grid-column:3;grid-row:1}.strip td:nth-child(3),.strip td:nth-child(4){grid-column:1/-1}.strip td select{font-size:12px;width:100%;padding:1px 5px}.strip td button{padding:2px 4px;margin:0 0 0 2px}.strip td input[type=range]{width:70%;height:12px}.strip .dot{margin-right:5px}input{accent-color:#27caa2!important}.strip td output{color:#b9ccdc}#scorewrap{overflow:hidden}#score{width:100%;min-width:0;background:#f6f9fc}.piano{background:#071020;border-top:1px solid var(--line);flex:none}.piano .panelhead{border:0;padding:6px 12px}.piano h2{color:#e5f1fb}.piano .panelhead label{color:var(--muted)}.pianoscroll{margin:0 auto;max-width:100%;padding:0 10px 4px}#keys .white{color:#172338}#keys .black{color:white}#keys .sounding{color:#0c1626}#status{color:#ffc38f}
 @media(max-width:720px){body{display:flex;flex-direction:column}aside{display:grid;grid-template-columns:auto 1fr;gap:3px 8px;padding:5px 8px;max-height:104px}.brand{border:0;padding:0;margin:0;font-size:17px}.brand small,.local,.libhead,#filter{display:none}.import{justify-self:end;font-size:12px}nav{grid-column:1/-1}.toolbar,.transport{gap:5px;padding:5px}.toolbar button{font-size:11px;padding:4px}.toolbar .pager{margin-left:0}.song small{display:none}.transport #popmetro{margin-left:0}main{flex:1}.lanes{grid-template-columns:140px minmax(460px,1fr);min-width:600px}.piano .white{max-height:72px}.piano .black{max-height:43px}}
 [hidden]{display:none!important}
+
+/* Keep notation and piano keys at playing size as the viewport changes. */
+#keys{margin-inline:auto;width:100%}
+#scorewrap,.workspace,.strip,.piano,.pianoscroll{min-width:0}
+.lanes{min-width:0;grid-template-columns:clamp(150px,14vw,200px) minmax(0,1fr)}
+#score{display:block}
+@media(max-width:720px){
+  body{height:auto;min-height:100dvh;overflow:auto}
+  aside{position:static;min-width:0;max-height:none}
+  aside nav{min-width:0;max-width:100%}
+  main{display:flex;min-width:0;flex:1;width:100%}
+  .workspace{overflow:visible}
+  .lanes{display:flex;flex-direction:column}
+  #scorewrap{order:-1}
+  .strip tbody{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(150px,100%),1fr))}
+  .strip tr{height:84px}
+  .strip h2{height:auto;padding:7px 10px}
+  .piano{position:sticky;bottom:0;z-index:2;padding-bottom:env(safe-area-inset-bottom)}
+  .toolbar,.transport{row-gap:6px}
+  .transport .song{min-width:0;max-width:100%}
+  .toolbar .pager{margin-left:auto}
+  .pianoscroll{overflow-x:auto}
+}
+@media(max-height:480px){body{height:auto;overflow:auto}.piano{position:static}.workspace{flex:none}}
