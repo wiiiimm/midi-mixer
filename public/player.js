@@ -1,6 +1,6 @@
 'use strict';
 const $=id=>document.getElementById(id),esc=x=>String(x).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const colours=['#27afe3','#9d80e6','#2ec499','#eca14c','#de7697','#8ca454'];
+const colours=['#0a84ff','#bf5af2','#30d158','#ff9f0a','#ff375f','#64d2ff'];
 let song,mix=[],pos=0,page=0,rate=1,playing=false,looping=false,ctx,buses=[],master,voices=[],origin=0,scheduled=0,cue=0;
 const time=x=>Math.floor(x/60)+':'+String(Math.floor(x%60)).padStart(2,'0');
 const playable=i=>!mix[i].mute&&(!mix.some(m=>m.solo)||mix[i].solo);
@@ -61,7 +61,7 @@ const solfaNames = ['Do','Di','Re','Ri','Mi','Fa','Fi','Sol','Si','La','Li','Ti'
 
 function staffLabel(pitch, key, mode) {
   if (mode === 'solfa') return solfaNames[(pitch - key.tonic + 12) % 12];
-  return sharpNames[pitch % 12] + (Math.floor(pitch / 12) - 1);
+  return sharpNames[pitch % 12];
 }
 
 staffLabels.onchange = () => { if (song) appLoading.during('Updating staff labels…', score); };

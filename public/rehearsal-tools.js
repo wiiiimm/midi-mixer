@@ -5,13 +5,57 @@
   const play = $('tuningPlay');
   const panel = $('tuningFork');
   let tone, generation = 0;
-  for (let note = 48; note < 84; note++) {
+  const lowest = 36, highest = 95; // C2–B6
+  for (let note = lowest; note <= highest; note++) {
     pitch.add(new Option(sharpNames[note % 12] + (Math.floor(note / 12) - 1), note, note === 69, note === 69));
   }
+  // One-octave keyboard: white keys in a row, black keys laid over the gaps.
+  const keys = $('tuningKeys');
+  const whiteIndex = {0:0, 2:1, 4:2, 5:3, 7:4, 9:5, 11:6};
+  const keyNames = ['C','C sharp','D','D sharp','E','F','F sharp','G','G sharp','A','A sharp','B'];
+  for (let pc = 0; pc < 12; pc++) {
+    const key = document.createElement('button');
+    key.type = 'button';
+    key.dataset.pc = pc;
+    const black = !(pc in whiteIndex);
+    key.className = black ? 'black' : 'white';
+    key.textContent = black ? '' : sharpNames[pc];
+    key.setAttribute('aria-label', keyNames[pc]);
+    if (black) key.style.left = 'calc(' + (whiteIndex[pc - 1] + 1) + ' * 100% / 7)';
+    keys.append(key);
+  }
+  const current = () => Number(pitch.value);
+  function setPitch(note, sound) {
+    pitch.value = Math.max(lowest, Math.min(highest, note));
+    updatePitch();
+    if (sound && !tone) play.onclick();
+  }
+  keys.onclick = e => {
+    const key = e.target.closest('[data-pc]');
+    if (!key) return;
+    const octaveBase = current() - current() % 12;
+    setPitch(octaveBase + Number(key.dataset.pc), true);
+  };
+  $('tuningOctDown').onclick = () => setPitch(current() - 12);
+  $('tuningOctUp').onclick = () => setPitch(current() + 12);
+  panel.addEventListener('keydown', e => {
+    if (e.target.closest('select,input')) return;
+    const step = {ArrowLeft: -1, ArrowRight: 1, ArrowDown: -12, ArrowUp: 12}[e.key];
+    if (!step) return;
+    e.preventDefault();
+    setPitch(current() + step);
+    keys.querySelector('[aria-pressed=true]')?.focus();
+  });
   const frequency = () => 440 * 2 ** ((Number(pitch.value) - 69) / 12);
   function updatePitch() {
     const hz = frequency();
-    $('tuningFrequency').textContent = 'Pure tone · ' + Number(hz.toFixed(2)) + ' Hz';
+    const note = current();
+    $('tuningFrequency').textContent = Number(hz.toFixed(2)) + ' Hz';
+    $('tuningNote').textContent = sharpNames[note % 12];
+    $('tuningOctave').textContent = Math.floor(note / 12) - 1;
+    $('tuningOctDown').disabled = note - 12 < lowest;
+    $('tuningOctUp').disabled = note + 12 > highest;
+    for (const key of keys.children) key.setAttribute('aria-pressed', Number(key.dataset.pc) === note % 12);
     if (tone) tone.osc.frequency.setTargetAtTime(hz, ctx.currentTime, .015);
   }
   function stopTone() {
@@ -25,6 +69,7 @@
       osc.stop(now + .09);
     }
     play.textContent = 'Play tone';
+    panel.classList.remove('sounding');
   }
   play.onclick = async () => {
     if (tone) {
@@ -46,6 +91,7 @@
       osc.start();
       tone = {osc, gain};
       play.textContent = 'Stop tone';
+      panel.classList.add('sounding');
     } catch (error) {
       $('tuningError').textContent = error.message;
     }
@@ -129,7 +175,10 @@
     search.value='';
     showResults();
     dialog.showModal();
-    search.focus();
+    // Scrolling the list is the main way to pick; only desktop gets the filter focused.
+    const selected=results.querySelector('[aria-pressed=true]');
+    selected?.scrollIntoView({block:'nearest'});
+    (matchMedia('(pointer: fine)').matches ? search : selected ?? dialog).focus({preventScroll:true});
   });
 
   function choose(button) {

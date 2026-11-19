@@ -117,9 +117,9 @@ function writeLayer(events, first, context, staff, layer, labels, timing) {
         '<chord xml:id="' + id + '"' + rhythm + '>' + notes + '</chord>' : notes });
       if (mode !== 'none' && onset === event.start) {
         const text = pitches.map(pitch => {
-          const {letter, accidental, octave} = spell(pitch,key.sf);
+          const {letter, accidental} = spell(pitch,key.sf);
           return mode === 'solfa' ? solfa[(pitch-key.tonic+12)%12] :
-            letter.toUpperCase() + ({s:'♯',f:'♭'}[accidental] ?? '') + octave;
+            letter.toUpperCase() + ({s:'♯',f:'♭'}[accidental] ?? '');
         }).join(' · ');
         labels.push('<dir type="staff-label" staff="' + staff + '" place="below" startid="#' +
           id + '"><rend fontsize="small">' + escape(text) + '</rend></dir>');
@@ -228,7 +228,14 @@ async function initialise() {
     header:'none', footer:'none', spacingStaff:11, spacingSystem:16, svgViewBox:true,
     minLastJustification:0, pageMarginTop:30, pageMarginBottom:35, pageMarginLeft:75, pageMarginRight:75,
   });
+  // Wider bars overall, and wider still when note/sol-fa labels sit under the notes.
+  const spacing = {
+    plain: {spacingLinear:.4, spacingNonLinear:.65, measureMinWidth:22},
+    labelled: {spacingLinear:.48, spacingNonLinear:.67, measureMinWidth:25},
+  };
+  window.engraveMidiScoreSpacing = spacing;
   window.engraveMidiScore = (song, mode) => {
+    toolkit.setOptions(spacing[mode === 'none' ? 'plain' : 'labelled']);
     const {mei,measures,timing} = encodeScore(song,mode);
     if (!toolkit.loadData(mei)) throw new Error('Could not engrave this MIDI score.');
     return { svg:toolkit.renderToSVG(1), measures, timing };

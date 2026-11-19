@@ -1,11 +1,12 @@
 ---
 import MetronomeIcon from '../components/MetronomeIcon.astro';
 import TuningForkIcon from '../components/TuningForkIcon.astro';
+import KeysLogo from '../components/KeysLogo.astro';
 ---
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0b1425"><title>midi-mixer · Rehearsal Studio</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="studio.css"></head><body>
-<div id="splash" class="splash" role="status" aria-live="polite"><div class="splash-card"><span class="logo">♫</span><strong>midi-mixer</strong><small>Rehearsal Studio</small><span class="spinner" aria-hidden="true"></span><span id="splashStatus">Loading songs and notation…</span></div></div>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><link rel="icon" href="favicon.svg" type="image/svg+xml"><meta name="theme-color" content="#0b1425"><title>midi-mixer · Rehearsal Studio</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="studio.css"></head><body>
+<div id="splash" class="splash" role="status" aria-live="polite"><div class="splash-card"><KeysLogo play="loop" class="logo" /><strong>midi-mixer</strong><small>Rehearsal Studio</small><span class="spinner" aria-hidden="true"></span><span id="splashStatus">Loading songs and notation…</span></div></div>
 <aside id="drawer" class="sidebar" aria-label="Library and rehearsal settings">
-  <div class="brand"><span class="logo">♫</span><div>midi-mixer<small>Rehearsal Studio</small></div><button id="closeDrawer" class="drawer-close" type="button" aria-label="Close menu">×</button></div>
+  <div class="brand"><KeysLogo play="hover" class="logo" /><div>midi-mixer<small>Rehearsal Studio</small></div><button id="closeDrawer" class="drawer-close" type="button" aria-label="Close menu">×</button></div>
   <div class="drawer-tabs" role="tablist" aria-label="Menu sections">
     <button type="button" role="tab" id="tab-songs" aria-controls="panel-songs" aria-selected="true">Songs</button>
     <button type="button" role="tab" id="tab-practice" aria-controls="panel-practice" aria-selected="false">Practice</button>
@@ -53,21 +54,24 @@ import TuningForkIcon from '../components/TuningForkIcon.astro';
       <table><tbody id="rows"></tbody></table></section>
     <div id="scorewrap"><h2 id="engravedTitle" hidden></h2><div id="scoreViewport" tabindex="0" role="region" aria-label="Scrollable MIDI score" hidden><div id="engravedScore"></div></div><svg id="score" hidden aria-label="Score. Click a position to start there."></svg></div>
   </div><output id="status" role="status"></output></div>
-  <section class="piano"><div class="panelhead"><h2>▥　Sound check piano</h2><div class="octaves"><button id="lowerKeys" aria-label="Scroll one octave lower">−8ve</button><button id="higherKeys" aria-label="Scroll one octave higher">+8ve</button></div><button id="sustain" type="button" aria-pressed="false">Sustain</button><button id="silenceKeys" type="button" disabled>Release notes</button><div class="piano-sound"><button type="button" class="instrument-picker" aria-haspopup="dialog" data-instrument-select="pianoVoice">Sound: Piano</button><select id="pianoVoice" hidden></select></div><label class="shortcut-octave">Shortcut octave <select id="octave" aria-label="Piano starting octave"></select></label></div><div class="pianoscroll"><div id="keys" aria-label="Practice piano keys"></div></div></section>
+  <section class="piano"><div class="panelhead"><h2>▥　Sound check piano</h2><div class="octaves"><button id="lowerKeys" aria-label="Scroll one octave lower">−8ve</button><span id="keysRange" class="keys-range" aria-live="polite"></span><button id="higherKeys" aria-label="Scroll one octave higher">+8ve</button></div><button id="sustain" type="button" aria-pressed="false" title="Hold notes after release. Turn off to release them.">Sustain</button><div class="piano-sound"><button type="button" class="instrument-picker" aria-haspopup="dialog" data-instrument-select="pianoVoice">Sound: Piano</button><select id="pianoVoice" hidden></select></div><label class="shortcut-octave">Shortcut octave <select id="octave" aria-label="Piano starting octave"></select></label></div><div class="pianoscroll"><div id="keys" aria-label="Practice piano keys"></div></div></section>
 <div id="scoreBusy" class="score-busy" role="status" aria-live="polite" hidden><span class="spinner" aria-hidden="true"></span><span id="scoreBusyText">Loading…</span></div></main><dialog id="metroPanel" class="floating" aria-labelledby="metroTitle"><div id="metroHandle" class="float-handle"><strong id="metroTitle"><MetronomeIcon /> Metronome</strong><button id="closeMetro" class="float-close" aria-label="Close metronome">×</button></div><div id="metroBody"></div></dialog>
 <dialog id="tuningFork" class="floating" aria-labelledby="tuningTitle">
   <div class="float-handle"><strong id="tuningTitle"><TuningForkIcon /> Tuning fork</strong><button class="float-close" aria-label="Close tuning fork">×</button></div>
-  <div class="float-body">
-    <label>Pitch <select id="tuningPitch"></select></label>
-    <output id="tuningFrequency" for="tuningPitch"></output>
+  <div class="float-body tuner">
+    <div class="tuner-readout" aria-live="polite"><strong id="tuningNote">A4</strong><output id="tuningFrequency" for="tuningPitch"></output></div>
+    <div class="tuner-keys" id="tuningKeys" role="group" aria-label="Choose a note"></div>
+    <div class="tuner-octave"><button id="tuningOctDown" type="button" aria-label="Octave down">−</button><span>Octave <b id="tuningOctave">4</b></span><button id="tuningOctUp" type="button" aria-label="Octave up">+</button></div>
     <button id="tuningPlay" type="button">Play tone</button>
+    <select id="tuningPitch" hidden aria-hidden="true" tabindex="-1"></select>
+    <p class="tuner-hint">Tap a key to hear it · ← → semitone · ↑ ↓ octave</p>
     <p id="tuningError" role="status"></p>
   </div>
 </dialog>
 <dialog id="instrumentDialog" aria-labelledby="instrumentTitle">
   <form method="dialog" class="instrument-heading"><h2 id="instrumentTitle">Choose an instrument</h2><button aria-label="Close instrument picker">×</button></form>
-  <label for="instrumentSearch">Search instruments</label>
-  <input type="search" id="instrumentSearch" placeholder="Type to filter, or pick from the list" autocomplete="off" autofocus>
+  <label for="instrumentSearch" class="visually-hidden">Filter instruments</label>
+  <input type="search" id="instrumentSearch" placeholder="Filter (optional)" autocomplete="off">
   <div id="instrumentResults"></div>
   <p id="instrumentEmpty" role="status" hidden>No matching instruments.</p>
 </dialog>

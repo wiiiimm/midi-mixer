@@ -4,13 +4,36 @@
   const octave = $('octave');
   const voiceSelect = $('pianoVoice');
   const sustain = $('sustain');
-  const silence = $('silenceKeys');
   const viewport = keyboard.parentElement;
   const gestures = new Map();
+  // Octave buttons glide to the next/previous C so the move is easy to follow.
+  const cKeys = () => [...keyboard.querySelectorAll('.white')].filter(k => Number(k.dataset.pitch) % 12 === 0);
+  let goal = null, goalTimer;
   function scrollOctave(direction) {
-    const white = keyboard.querySelector('.white');
-    if (white) viewport.scrollBy({left: direction * 7 * white.offsetWidth});
+    const left = goal ?? viewport.scrollLeft, keys = cKeys();
+    const target = direction > 0
+      ? keys.find(k => k.offsetLeft > left + 2)
+      : keys.findLast(k => k.offsetLeft < left - 2);
+    goal = Math.max(0, Math.min(viewport.scrollWidth - viewport.clientWidth,
+      target ? target.offsetLeft : (direction > 0 ? viewport.scrollWidth : 0)));
+    viewport.scrollTo({left: goal, behavior: 'smooth'});
+    clearTimeout(goalTimer);
+    goalTimer = setTimeout(() => { goal = null; }, 700); // clicks during a glide stack up
   }
+  const rangeLabel = $('keysRange');
+  const octaveOf = pitch => Math.floor(pitch / 12) - 1;
+  function updateRange() {
+    const left = viewport.scrollLeft, right = left + viewport.clientWidth;
+    const visible = [...keyboard.querySelectorAll('.white')].filter(k => k.offsetLeft >= left - 1 && k.offsetLeft + k.offsetWidth <= right + 1);
+    if (!visible.length) return;
+    const lo = Number(visible[0].dataset.pitch), hi = Number(visible.at(-1).dataset.pitch);
+    rangeLabel.textContent = pitches[lo % 12] + octaveOf(lo) + '–' + pitches[hi % 12] + octaveOf(hi);
+    $('lowerKeys').disabled = left <= 1;
+    $('higherKeys').disabled = right >= viewport.scrollWidth - 1;
+  }
+  let rangeFrame;
+  viewport.addEventListener('scroll', () => { cancelAnimationFrame(rangeFrame); rangeFrame = requestAnimationFrame(updateRange); }, {passive: true});
+  new ResizeObserver(updateRange).observe(viewport);
   $('lowerKeys').onclick = () => scrollOctave(-1);
   $('higherKeys').onclick = () => scrollOctave(1);
   const shortcuts = "AWSEDFTGYHUJKOLP;'";
@@ -74,7 +97,6 @@
     held.delete(id);
     if (keepSustain && sustainEnabled && ![...held.values()].some(v => v.key === voice.key)) {
       sustained.set(voice.key, voice);
-      silence.disabled = false;
     } else stop(voice);
   }
 
@@ -83,7 +105,6 @@
       sustained.delete(key);
       stop(voice);
     }
-    silence.disabled = true;
   }
 
   async function press(id, key) {
@@ -95,7 +116,6 @@
     if (previous) {
       sustained.delete(key);
       stop(previous);
-      silence.disabled = sustained.size === 0;
     }
     key.classList.add('held');
     try {
@@ -122,7 +142,6 @@
       if (sustained.get(key) === voice) {
         sustained.delete(key);
         stop(voice);
-        silence.disabled = sustained.size === 0;
       }
       $('status').textContent = error.message;
     }
@@ -137,7 +156,6 @@
     sustain.setAttribute('aria-pressed', sustainEnabled);
     if (!sustainEnabled) clearSustained();
   };
-  silence.onclick = releaseAll;
   function build() {
     releaseAll();
     keyboard.replaceChildren();
@@ -159,7 +177,7 @@
       key.dataset.pitch = midi;
       keysByPitch.set(midi, key);
       key.setAttribute('aria-label', name + (letter ? ', shortcut ' + letter : ''));
-      key.innerHTML = '<strong>' + name + '</strong><small>' + letter + '</small>';
+      key.innerHTML = '<strong>' + pitch + '</strong><small>' + letter + '</small>';
       if (sharp) {key.style.left = whiteCount / whites * 100 + '%'; key.style.width = 64 / whites + '%'}
       else whiteCount++;
       key.onpointerdown = e => {

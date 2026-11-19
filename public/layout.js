@@ -104,3 +104,22 @@
   selectTab('songs');
   arrange();
 })();
+
+// Brand mark plays a quick scale on load, on hover and whenever playback starts.
+(() => {
+  const mark = document.querySelector('.brand .keys-hover');
+  if (!mark) return;
+  let timer;
+  function playScale() {
+    mark.classList.remove('playing');
+    void mark.getBoundingClientRect(); // restart the CSS animation
+    mark.classList.add('playing');
+    clearTimeout(timer);
+    timer = setTimeout(() => mark.classList.remove('playing'), 2500); // run + stagger
+  }
+  mark.closest('.brand').addEventListener('pointerenter', playScale);
+  document.getElementById('play').addEventListener('click', () => setTimeout(() => {
+    if (/pause/i.test(document.getElementById('play').textContent)) playScale();
+  }, 50));
+  window.addEventListener('library-ready', () => setTimeout(playScale, 400), {once: true});
+})();
