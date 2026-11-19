@@ -25,7 +25,4 @@ function parseMidi(bytes,title){
  for(const [ch,t] of channels){t.name=(name||'Track '+(tracks.length+1))+(channels.size>1?' · Ch '+(ch+1):'');tracks.push(t)}}
  return prepare(title,tracks,tm,ms)
 }
-function demo(title,melody,bpm,round=false){let names=['Soprano','Alto','Tenor','Bass'],root=[48,43,48,43,48,43,43,48];let tracks=names.map((name,i)=>({name,inst:i===3?4:0,notes:[]}));let q=0;
- melody.forEach(([pitch,len])=>{tracks.forEach((t,i)=>{let p=pitch,delay=0;if(round){delay=i*8;p-=i>1?12:0}else if(i){let bass=root[Math.floor(q/4)%8];p=i===3?bass:i===2?bass+7:bass+16;if(i===1&&p>=pitch)p-=5}t.notes.push({p,q:q+delay,len,v:.7})});q+=len});return prepare(title,tracks,[{q:0,us:6e7/bpm}])}
-const ode=[[64,1],[64,1],[65,1],[67,1],[67,1],[65,1],[64,1],[62,1],[60,1],[60,1],[62,1],[64,1],[64,1.5],[62,.5],[62,2],[64,1],[64,1],[65,1],[67,1],[67,1],[65,1],[64,1],[62,1],[60,1],[60,1],[62,1],[64,1],[62,1.5],[60,.5],[60,2]];
-const songs=[demo('Ode to Joy',ode,96),demo('Frère Jacques',[[60,1],[62,1],[64,1],[60,1],[60,1],[62,1],[64,1],[60,1],[64,1],[65,1],[67,2],[64,1],[65,1],[67,2],[67,.5],[69,.5],[67,.5],[65,.5],[64,1],[60,1],[67,.5],[69,.5],[67,.5],[65,.5],[64,1],[60,1],[60,1],[55,1],[60,2],[60,1],[55,1],[60,2]],88,true)];
+const songs = [];

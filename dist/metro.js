@@ -27,6 +27,10 @@ el('start').onclick=async()=>{
   }catch(error){stop();el('error').textContent=error.message}
 };
 el('slider').oninput=()=>el('bpm').value=el('slider').value;
-el('bpm').onchange=()=>{const bpm=Math.max(30,Math.min(300,Math.round(Number(el('bpm').value))||95));el('slider').value=el('bpm').value=bpm};
+el('bpm').onchange=()=>{const bpm=Math.max(30,Math.min(190,Math.round(Number(el('bpm').value))||95));el('slider').value=el('bpm').value=bpm};
 el('meter').onchange=()=>{beat=0;draw()};
 window.addEventListener('pagehide',stop);draw();
+if(window.parent!==window && new URLSearchParams(location.search).has('embedded')){
+  document.body.classList.add('embedded');
+  window.addEventListener('keydown',e=>{if(e.key==='Escape')window.parent.postMessage('close-metronome',location.origin)});
+}

@@ -50,7 +50,25 @@ function score(){const bars=song.bars,count=Math.min(barsPerPage,bars.length-1-p
  svg.innerHTML=s+'<g id="cursor" pointer-events="none"><path d="M-4 25h8l-4 6z" fill="#00ad81"/>'+line(0,30,0,h-10,'#00ad81',1.5)+'</g>';$('bars').textContent='Bars '+(page+1)+'–'+(page+count);$('prev').disabled=page===0;$('next').disabled=page+count>=bars.length-1;cursor()}
 function cursor(){const q=song.beat(pos),idx=barAt(q),c=$('cursor');if(!c)return;c.style.display=idx<page||idx>=page+barsPerPage?'none':'';let w=barWidth();let b=song.bars[idx].q,end=song.bars[idx+1].q;c.setAttribute('transform','translate('+(scoreStart+(idx-page)*w+14+(q-b)/(end-b)*(w-20))+' 0)')}
 $('score').onclick=e=>{const r=$('score').getBoundingClientRect(),x=(e.clientX-r.left)/r.width*scoreWidth;if(x<scoreStart)return;const count=Math.min(barsPerPage,song.bars.length-1-page),w=barWidth(),j=Math.min(count-1,Math.max(0,Math.floor((x-scoreStart)/w))),b=song.bars[page+j].q,d=song.bars[page+j+1].q-b;seek(song.seconds(b+Math.max(0,Math.min(.999,(x-scoreStart-j*w-14)/(w-20)))*d))};
-function display(){if(!song)return;const q=song.beat(pos),i=barAt(q),bar=song.bars[i];$('beatpos').textContent=(i+1)+' : '+Math.min(bar.n,1+Math.floor((q-bar.q)*bar.d/4));$('seek').value=pos;$('clock').textContent=time(pos)+' / '+time(song.duration);cursor()}
+function sourceBpm() {
+  const changes = song.tempos;
+  let low = 0, high = changes.length;
+  while (low + 1 < high) {
+    const mid = (low + high) >> 1;
+    if (changes[mid].sec <= pos) low = mid; else high = mid;
+  }
+  return 60000000 / changes[low].us;
+}
+function updateTempoDisplay() {
+  const original = sourceBpm();
+  for (const option of $('rate').options) {
+    const value = Math.round(original * Number(option.value) * 100) / 100;
+    const disabled = value < 30 || value > 190;
+    if (option.disabled !== disabled) option.disabled = disabled;
+  }
+  if (document.activeElement !== $('tempoBpm')) $('tempoBpm').value = Number((sourceBpm()*rate).toFixed(2));
+}
+function display(){if(!song)return;updateTempoDisplay();const q=song.beat(pos),i=barAt(q),bar=song.bars[i];$('beatpos').textContent=(i+1)+' : '+Math.min(bar.n,1+Math.floor((q-bar.q)*bar.d/4));$('seek').value=pos;$('clock').textContent=time(pos)+' / '+time(song.duration);cursor()}
 setInterval(()=>{if(playing){let p=pageFor(barAt(song.beat(pos)));if(p!==page){page=p;score()}}display()},70);
 function groupState(){let sel=mix.filter(m=>m.selected);$('solosel').disabled=!sel.length;$('solosel').textContent=sel.length&&sel.every(t=>t.solo)?'Unsolo selected':'Solo selected';$('group').disabled=!sel.length;$('group').textContent=sel.length&&sel.every(m=>m.mute)?'Unmute selected':'Mute selected';$('all').checked=sel.length===mix.length;$('all').indeterminate=sel.length>0&&sel.length<mix.length}
 function mixer(){$('rows').innerHTML=mix.map((m,i)=>{let name=esc(song.tracks[i].name);return '<tr data-i="'+i+'"><td><input type="checkbox" data-k="selected" aria-label="Select '+name+'" '+(m.selected?'checked':'')+'></td><td><strong><i class="dot" style="background:'+colours[i%colours.length]+'"></i>'+name+'</strong></td><td><select data-k="inst" aria-label="'+name+' instrument">'+instruments.map((v,k)=>'<option value="'+k+'" '+(k===m.inst?'selected':'')+'>'+v+'</option>').join('')+'</select></td><td><input type="range" data-k="vol" aria-label="'+name+' volume" min="0" max="100" value="'+m.vol+'"><output>'+m.vol+'%</output></td><td>'+['solo','mute'].map(k=>'<button title="'+k+' '+name+'" aria-label="'+k+' '+name+'" data-k="'+k+'" aria-pressed="'+m[k]+'">'+k[0].toUpperCase()+'</button>').join('')+'</td></tr>'}).join('');groupState();gain()}
@@ -60,9 +78,31 @@ $('group').onclick=()=>{let sel=mix.filter(m=>m.selected),v=!sel.every(m=>m.mute
 function reset(){mix=song.tracks.map(t=>({inst:t.inst,vol:80,solo:false,mute:false,selected:false}));song.mix=mix;mixer()}$('reset').onclick=()=>{reset();if(playing)restart()};
 function library(){$('filecount').textContent=songs.length;$('files').innerHTML=songs.map((s,i)=>'<button data-index="'+i+'" class="'+(s===song?'active':'')+'"><span class="fileicon">♫</span><span>'+esc(s.title)+'<small>'+s.tracks.length+' tracks · '+time(s.duration)+'</small></span></button>').join('');filterSongs()}
 $('files').onclick=e=>{const b=e.target.closest('button');if(b)select(songs[+b.dataset.index])};
-function select(s){playing=false;stopNotes();buses.forEach(g=>g.disconnect());buses=[];song=s;pos=page=0;looping=false;$('loop').setAttribute('aria-pressed',false);$('play').textContent='▶　Play';$('a').max=$('b').max=s.bars.length-1;$('a').value=1;$('b').value=Math.min(4,s.bars.length-1);$('seek').max=s.duration;$('title').textContent=s.title;$('meta').textContent=s.tracks.length+' tracks　·　'+(s.bars.length-1)+' bars　·　'+Math.round(6e7/s.tempos.filter(e=>e.q===0).at(-1).us)+' BPM';if(s.mix){mix=s.mix;mixer()}else reset();library();score();display();window.dispatchEvent(new Event("pianosong"))}
+function select(s){playing=false;stopNotes();buses.forEach(g=>g.disconnect());buses=[];song=s;pos=page=0;looping=false;$('loop').setAttribute('aria-pressed',false);$('play').textContent='▶　Play';$('a').max=$('b').max=s.bars.length-1;$('a').value=1;$('b').value=Math.min(4,s.bars.length-1);$('seek').max=s.duration;$('title').textContent=s.title;$('meta').textContent=s.tracks.length+' tracks　·　'+(s.bars.length-1)+' bars';if(s.mix){mix=s.mix;mixer()}else reset();library();score();display();window.dispatchEvent(new Event("pianosong"))}
 $('prev').onclick=()=>{page-=barsPerPage;score()};$('next').onclick=()=>{page+=barsPerPage;score()};$('seek').oninput=e=>seek(+e.target.value);$('home').onclick=()=>seek(looping?range()[0]:0);
 $('rate').innerHTML=[.25,.5,.65,.75,.85,.9,1,1.1,1.25,1.5,1.75,2].map(v=>'<option value="'+v+'" '+(v===1?'selected':'')+'>'+v+'×</option>').join('');$('rate').onchange=e=>{rate=+e.target.value;if(playing)restart()};
+$('tempoBpm').onchange = e => {
+  if (!song) return;
+  const input = e.target.valueAsNumber;
+  if (!Number.isFinite(input)) {
+    e.target.value = Number((sourceBpm()*rate).toFixed(2));
+    return;
+  }
+  const target = Math.max(30, Math.min(190, input));
+  e.target.value = target;
+  const ratio = target/sourceBpm();
+  const select = $('rate');
+  select.querySelector('[data-custom]')?.remove();
+  let option = Array.from(select.options).find(o => Math.abs(Number(o.value)-ratio)<0.00001);
+  if (!option) {
+    option = new Option(Number(ratio.toFixed(3))+'×', String(ratio));
+    option.dataset.custom = 'true';
+    select.add(option);
+  }
+  select.value = option.value;
+  select.onchange({target:select});
+};
+$('tempoBpm').onkeydown = e => {if (e.key === 'Enter') e.target.blur()};
 function loopChange(){if(looping){let [a,b]=range();if(pos<a||pos>=b)seek(a);else if(playing)restart()}else if(playing)restart()}
 $('loop').onclick=()=>{looping=!looping;$('loop').setAttribute('aria-pressed',looping);loopChange()};
 for(const id of ['a','b'])$(id).onchange=()=>{let el=$(id);el.value=Math.max(1,Math.min(song.bars.length-1,Math.round(+el.value)||1));if(+$('a').value>+$('b').value)$(id==='a'?'b':'a').value=el.value;loopChange()};
@@ -86,7 +126,6 @@ function scheduleClicks(from,to) {
   }
 }
 $('click').onclick=()=>{playbackClick=!playbackClick;$('click').setAttribute('aria-pressed',playbackClick);if(!playbackClick)clearClicks()};
-$('popmetro').onclick=e=>{if(e.metaKey||e.ctrlKey||e.shiftKey)return;const win=window.open(e.currentTarget.href,'midiMixerMetronome','popup,width=390,height=450');if(win){e.preventDefault();win.focus()}};
 $('keytoggle').onclick=e=>{const piano=document.querySelector('.piano');piano.hidden=!piano.hidden;e.currentTarget.setAttribute('aria-pressed',!piano.hidden)};
 $('solosel').onclick=()=>{const sel=mix.filter(t=>t.selected),on=!sel.every(t=>t.solo);sel.forEach(t=>t.solo=on);mixer()};
 function filterSongs(){const query=$('filter').value.trim().toLowerCase();for(const b of $('files').children)b.hidden=!songs[+b.dataset.index].title.toLowerCase().includes(query)}
@@ -94,5 +133,40 @@ $('filter').oninput=filterSongs;
 
 let dbp=new Promise(resolve=>{try{const req=indexedDB.open('partbook-midi',1);req.onupgradeneeded=()=>req.result.createObjectStore('scores',{keyPath:'id'});req.onsuccess=()=>resolve(req.result);req.onerror=()=>resolve(null)}catch{resolve(null)}});
 async function saveFile(item){let db=await dbp;if(!db)return false;return new Promise(resolve=>{const tx=db.transaction('scores','readwrite');tx.objectStore('scores').put(item);tx.oncomplete=()=>resolve(true);tx.onerror=tx.onabort=()=>resolve(false)})}
-$('import').onclick=()=>$('upload').click();$('upload').onchange=async e=>{let first,errors=[];for(const f of Array.from(e.target.files)){try{const data=await f.arrayBuffer(),name=f.name.replace(/\.midi?$/i,''),id=f.name+'|'+f.size+'|'+f.lastModified;let s=songs.find(t=>t.id===id);if(!s){s=parseMidi(data,name);s.id=id;songs.push(s);if(!await saveFile({id,name,data}))errors.push(f.name+' is available for this session only.')}first??=s}catch(err){errors.push(f.name+' — '+err.message)}}if(first)select(first);$('status').textContent=errors.join(' ');e.target.value=''};
-select(songs[0]);dbp.then(db=>{if(!db)return;const req=db.transaction('scores').objectStore('scores').getAll();req.onsuccess=()=>{for(const f of req.result){try{if(songs.some(s=>s.id===f.id))continue;const s=parseMidi(f.data,f.name);s.id=f.id;songs.push(s)}catch{}}library()}});
+$('import').onclick=()=>$('upload').click();$('upload').onchange=async e=>{let first,errors=[];for(const f of Array.from(e.target.files)){try{const data=await f.arrayBuffer(),name=f.name.replace(/\.midi?$/i,''),id=f.name+'|'+f.size+'|'+f.lastModified;let s=songs.find(t=>t.id===id);if(!s){s=parseMidi(data,name);s.id=id;songs.push(s);if(!await saveFile({id,name,data}))errors.push(f.name+' is available for this session only.')}first??=s}catch(err){errors.push(f.name+' — '+err.message)}}if(first){select(first);refreshLibrary()}$('status').textContent=errors.join(' ');e.target.value=''};
+function refreshLibrary() {
+  if (!song && songs.length) select(songs[0]);
+  else library();
+  for (const id of ['play','home','seek','rate','tempoBpm','loop','a','b','reset','all']) $(id).disabled = !song;
+  if (!song) {
+    $('prev').disabled = $('next').disabled = true;
+    $('title').textContent = 'Load a MIDI file';
+  }
+}
+async function openLibrary() {
+  refreshLibrary();
+  const results = await Promise.allSettled(bundledSongs.map(async ([title, path]) => {
+    const response = await fetch(path);
+    if (!response.ok) throw new Error('Could not load ' + title);
+    return parseMidi(await response.arrayBuffer(), title);
+  }));
+  songs.unshift(...results.filter(r => r.status === 'fulfilled').map(r => r.value));
+  const failures = results.filter(r => r.status === 'rejected');
+  if (failures.length) $('status').textContent = failures.map(r => r.reason.message).join(' ');
+  refreshLibrary();
+  const db = await dbp;
+  if (!db) return;
+  const request = db.transaction('scores').objectStore('scores').getAll();
+  request.onsuccess = () => {
+    for (const file of request.result) {
+      if (songs.some(s => s.id === file.id)) continue;
+      try {
+        const restored = parseMidi(file.data, file.name);
+        restored.id = file.id;
+        songs.push(restored);
+      } catch {}
+    }
+    refreshLibrary();
+  };
+}
+openLibrary();

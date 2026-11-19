@@ -26,3 +26,16 @@ main{display:flex;flex-direction:column;max-width:none;margin:0;padding:0;min-he
   .pianoscroll{overflow-x:auto}
 }
 @media(max-height:480px){body{height:auto;overflow:auto}.piano{position:static}.workspace{flex:none}}
+html{height:100%;overflow:hidden}
+body{height:100vh;height:100dvh;min-height:0;overflow:hidden;grid-template-rows:minmax(0,1fr)}
+main{min-height:0;overflow:hidden}
+.workspace{flex:1 1 0;min-height:0;overflow:auto}
+.piano{position:static}
+#metroPanel{position:fixed;inset:auto;margin:0;padding:0;width:min(320px,calc(100vw - 12px));max-width:none;max-height:calc(100dvh - 8px);border:1px solid #496078;border-radius:10px;box-shadow:0 14px 46px #0008;background:#101a2b;color:#edf4ff;z-index:10;overflow:auto}
+#metroHandle{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;background:#1c2c42;cursor:grab;touch-action:none;user-select:none}
+#metroHandle:active{cursor:grabbing}
+#closeMetro{font-size:20px;line-height:1}
+#metroBody iframe{display:block;border:0;width:100%;height:min(248px,calc(100dvh - 52px))}
+@media(max-width:720px){aside{flex:none}main{flex:1 1 0}}
+@media(max-height:480px){.piano .white{max-height:54px}.piano .black{max-height:34px}.piano .panelhead{padding-block:2px}}
+.transport #tempoBpm{width:68px;font:13px ui-monospace,monospace}
