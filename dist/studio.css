@@ -39,3 +39,9 @@ main{min-height:0;overflow:hidden}
 @media(max-width:720px){aside{flex:none}main{flex:1 1 0}}
 @media(max-height:480px){.piano .white{max-height:54px}.piano .black{max-height:34px}.piano .panelhead{padding-block:2px}}
 .transport #tempoBpm{width:68px;font:13px ui-monospace,monospace}
+
+.pianoscroll{width:100%;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:thin}
+#keys{--white-key-width:clamp(34px,3.3vw,48px);margin-inline:0;max-width:none;min-width:0}
+.octaves{display:flex;gap:4px;margin-left:auto;margin-right:12px}
+.piano .panelhead{flex-wrap:wrap;gap:4px}
+@media(max-width:420px){.piano .panelhead{padding-inline:6px}.octaves{margin-right:0}.octaves button{padding:3px}.piano .panelhead label{font-size:11px}}

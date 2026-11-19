@@ -2,6 +2,14 @@
 (() => {
   const keyboard = $('keys');
   const octave = $('octave');
+  const viewport = keyboard.parentElement;
+  const gestures = new Map();
+  function scrollOctave(direction) {
+    const white = keyboard.querySelector('.white');
+    if (white) viewport.scrollBy({left: direction * 7 * white.offsetWidth});
+  }
+  $('lowerKeys').onclick = () => scrollOctave(-1);
+  $('higherKeys').onclick = () => scrollOctave(1);
   const shortcuts = 'ZSXDCVGBHNJMQ2W3ER5T6Y7UI';
   const pitches = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
   const held = new Map();
@@ -36,7 +44,7 @@
     painted = next;
   }
   setInterval(updatePlayback, 20);
-  for (let n = 1; n <= 6; n++) octave.add(new Option('C' + n, n, n === 3, n === 3));
+  for (let n = -1; n <= 7; n++) octave.add(new Option('C' + n, n, n === 3, n === 3));
 
   function release(id) {
     const voice = held.get(id);
@@ -84,19 +92,9 @@
     keysByPitch.clear();
     painted.clear();
     const start = (Number(octave.value) + 1) * 12;
-    let low = start, high = start + shortcuts.length - 1;
-    for (const track of song?.tracks ?? []) {
-      for (const note of track.notes) {
-        low = Math.min(low, note.p);
-        high = Math.max(high, note.p);
-      }
-    }
-    if (pitches[low % 12].includes('♯')) low--;
-    if (pitches[high % 12].includes('♯')) high++;
-    const range = Array.from({length: high-low+1}, (_,i) => low+i);
-    const whites = range.filter(n => !pitches[n % 12].includes('♯')).length;
-    keyboard.style.minWidth = (whites * 29) + 'px';
-    keyboard.style.maxWidth = (whites * 48) + 'px';
+    const range = Array.from({length:132}, (_,pitch) => pitch);
+    const whites = 77;
+    keyboard.style.width = 'calc(var(--white-key-width) * ' + whites + ')';
     let whiteCount = 0;
     range.forEach(midi => {
       const i = midi-start, letter = shortcuts[i] || "";
@@ -115,9 +113,22 @@
         if (e.button !== 0) return;
         e.preventDefault();
         key.setPointerCapture(e.pointerId);
+        gestures.set(e.pointerId, {x:e.clientX, left:viewport.scrollLeft, dragging:false});
         press(e.pointerId, key);
       };
-      key.onpointerup = key.onpointercancel = key.onlostpointercapture = e => release(e.pointerId);
+      key.onpointermove = e => {
+        const gesture = gestures.get(e.pointerId);
+        if (!gesture || gestures.size !== 1) return;
+        const distance = e.clientX - gesture.x;
+        if (!gesture.dragging && Math.abs(distance) < 7) return;
+        gesture.dragging = true;
+        release(e.pointerId);
+        viewport.scrollLeft = gesture.left - distance;
+      };
+      key.onpointerup = key.onpointercancel = key.onlostpointercapture = e => {
+        gestures.delete(e.pointerId);
+        release(e.pointerId);
+      };
       key.onclick = e => {
         if (e.detail !== 0) return;
         const id = Symbol();
@@ -127,6 +138,8 @@
       if (letter) buttons[i] = key;
       keyboard.append(key);
     });
+    const first = keysByPitch.get(start);
+    viewport.scrollLeft = first.offsetLeft;
   }
   window.addEventListener('keydown', e => {
     if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.isComposing ||
@@ -139,7 +152,12 @@
   window.addEventListener('keyup', e => release(e.code));
   window.addEventListener('blur', releaseAll);
   document.addEventListener('visibilitychange', () => {if (document.hidden) releaseAll()});
-  window.addEventListener('pianosong', build);
+  viewport.addEventListener('wheel', e => {
+    if(e.ctrlKey || e.shiftKey || Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
+    const old = viewport.scrollLeft;
+    viewport.scrollLeft += e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? viewport.clientWidth : 1);
+    if(viewport.scrollLeft !== old)e.preventDefault();
+  }, {passive:false});
   octave.onchange = build;
   build();
 })();
