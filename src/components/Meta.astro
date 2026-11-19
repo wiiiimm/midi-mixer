@@ -1,0 +1,27 @@
+---
+// Shared SEO + social preview tags. Links become absolute once `site` is set in astro.config.mjs.
+interface Props { title: string; description: string; path?: string }
+const { title, description, path = '' } = Astro.props;
+const absolute = (file: string) => (Astro.site ? new URL(file, Astro.site).href : file);
+const image = absolute('og-image.png');
+const url = Astro.site ? new URL(path, Astro.site).href : undefined;
+---
+<meta name="description" content={description}>
+<meta name="theme-color" content="#1c1c1e">
+<meta name="apple-mobile-web-app-title" content="midi-mixer">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+{url && <link rel="canonical" href={url}>}
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="midi-mixer">
+<meta property="og:title" content={title}>
+<meta property="og:description" content={description}>
+{url && <meta property="og:url" content={url}>}
+<meta property="og:image" content={image}>
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="midi-mixer Rehearsal Studio: angled piano keys logo beside the app name">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content={title}>
+<meta name="twitter:description" content={description}>
+<meta name="twitter:image" content={image}>
