@@ -2,6 +2,9 @@
 (() => {
   const keyboard = $('keys');
   const octave = $('octave');
+  const voiceSelect = $('pianoVoice');
+  const sustain = $('sustain');
+  const silence = $('silenceKeys');
   const viewport = keyboard.parentElement;
   const gestures = new Map();
   function scrollOctave(direction) {
@@ -10,11 +13,19 @@
   }
   $('lowerKeys').onclick = () => scrollOctave(-1);
   $('higherKeys').onclick = () => scrollOctave(1);
-  const shortcuts = 'ZSXDCVGBHNJMQ2W3ER5T6Y7UI';
+  const shortcuts = "AWSEDFTGYHUJKOLP;'";
+  const shortcutCodes = [...shortcuts].map(key =>
+    ({';':'Semicolon', "'":'Quote'})[key] ?? 'Key' + key
+  );
   const pitches = ['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B'];
   const held = new Map();
+  const sustained = new Map();
+  let sustainEnabled = false;
   const buttons = [];
   const keysByPitch = new Map();
+  // The last mixer preset is a pitch sweep for MIDI percussion.
+  instruments.slice(0, -1).forEach((name, index) => voiceSelect.add(new Option(name, index)));
+  const sustainLevels = [.075, .06, .15, .045, .09, .12, .13, .12, .10, .14];
   let painted = new Map();
   function updatePlayback() {
     const sounding = new Map();
@@ -46,11 +57,10 @@
   setInterval(updatePlayback, 20);
   for (let n = -1; n <= 7; n++) octave.add(new Option('C' + n, n, n === 3, n === 3));
 
-  function release(id) {
-    const voice = held.get(id);
-    if (!voice) return;
-    held.delete(id);
-    if (![...held.values()].some(v => v.key === voice.key)) voice.key.classList.remove('held');
+  function stop(voice) {
+    if (![...held.values()].some(v => v.key === voice.key) && !sustained.has(voice.key)) {
+      voice.key.classList.remove('held');
+    }
     if (!voice.osc) return;
     const now = ctx.currentTime;
     voice.amp.gain.cancelScheduledValues(now);
@@ -58,33 +68,76 @@
     voice.osc.stop(now + .09);
   }
 
+  function release(id, keepSustain = false) {
+    const voice = held.get(id);
+    if (!voice) return;
+    held.delete(id);
+    if (keepSustain && sustainEnabled && ![...held.values()].some(v => v.key === voice.key)) {
+      sustained.set(voice.key, voice);
+      silence.disabled = false;
+    } else stop(voice);
+  }
+
+  function clearSustained() {
+    for (const [key, voice] of sustained) {
+      sustained.delete(key);
+      stop(voice);
+    }
+    silence.disabled = true;
+  }
+
   async function press(id, key) {
     if (held.has(id)) return;
+    const preset = Number(voiceSelect.value);
     const voice = {key};
     held.set(id, voice);
+    const previous = sustained.get(key);
+    if (previous) {
+      sustained.delete(key);
+      stop(previous);
+      silence.disabled = sustained.size === 0;
+    }
     key.classList.add('held');
     try {
       await enableAudio();
-      if (held.get(id) !== voice) return;
+      if (held.get(id) !== voice && sustained.get(key) !== voice) return;
       const now = ctx.currentTime;
-      const osc = ctx.createOscillator(), amp = ctx.createGain();
+      const osc = ctx.createOscillator(), amp = ctx.createGain(), filter = ctx.createBiquadFilter();
       voice.osc = osc;
       voice.amp = amp;
-      osc.type = 'triangle';
+      osc.type = instrumentWaves[preset];
       osc.frequency.value = 440 * 2 ** ((Number(key.dataset.pitch) - 69) / 12);
+      filter.frequency.value = instrumentCutoffs[preset];
+      const attack = preset === 0 ? .009 : instrumentAttacks[preset];
       amp.gain.setValueAtTime(.0001, now);
-      amp.gain.exponentialRampToValueAtTime(.21, now + .009);
-      amp.gain.setTargetAtTime(.075, now + .01, .45);
-      osc.connect(amp).connect(master);
-      osc.onended = () => {osc.disconnect(); amp.disconnect()};
+      amp.gain.exponentialRampToValueAtTime(.21, now + attack);
+      amp.gain.setTargetAtTime(sustainLevels[preset], now + attack + .001, .45);
+      if (preset === 0) osc.connect(amp);
+      else osc.connect(filter).connect(amp);
+      amp.connect(master);
+      osc.onended = () => {osc.disconnect(); filter.disconnect(); amp.disconnect()};
       osc.start(now);
     } catch (error) {
-      release(id);
+      if (held.get(id) === voice) release(id);
+      if (sustained.get(key) === voice) {
+        sustained.delete(key);
+        stop(voice);
+        silence.disabled = sustained.size === 0;
+      }
       $('status').textContent = error.message;
     }
   }
 
-  function releaseAll() { for (const id of held.keys()) release(id) }
+  function releaseAll() {
+    clearSustained();
+    for (const id of held.keys()) release(id);
+  }
+  sustain.onclick = () => {
+    sustainEnabled = !sustainEnabled;
+    sustain.setAttribute('aria-pressed', sustainEnabled);
+    if (!sustainEnabled) clearSustained();
+  };
+  silence.onclick = releaseAll;
   function build() {
     releaseAll();
     keyboard.replaceChildren();
@@ -127,13 +180,13 @@
       };
       key.onpointerup = key.onpointercancel = key.onlostpointercapture = e => {
         gestures.delete(e.pointerId);
-        release(e.pointerId);
+        release(e.pointerId, e.type === 'pointerup');
       };
       key.onclick = e => {
         if (e.detail !== 0) return;
         const id = Symbol();
         press(id, key);
-        setTimeout(() => release(id), 400);
+        setTimeout(() => release(id, true), 400);
       };
       if (letter) buttons[i] = key;
       keyboard.append(key);
@@ -143,13 +196,27 @@
   }
   window.addEventListener('keydown', e => {
     if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.isComposing ||
-        e.target.closest?.('input,select,textarea,[contenteditable="true"]')) return;
-    const i = e.key.length === 1 ? shortcuts.indexOf(e.key.toUpperCase()) : -1;
+        e.target.closest?.('input,select,textarea,[contenteditable],dialog,[popover]')) return;
+    if (e.shiftKey || keyboard.closest('.piano').hidden) return;
+    if (e.code === 'KeyZ' || e.code === 'KeyX') {
+      e.preventDefault();
+      if (e.repeat) return;
+      const index = octave.selectedIndex + (e.code === 'KeyZ' ? -1 : 1);
+      if (index >= 0 && index < octave.options.length) {
+        octave.selectedIndex = index;
+        build();
+      }
+      return;
+    }
+    const i = shortcutCodes.indexOf(e.code);
     if (i < 0) return;
     e.preventDefault();
     if (!e.repeat) press(e.code, buttons[i]);
   });
-  window.addEventListener('keyup', e => release(e.code));
+  window.addEventListener('keyup', e => release(e.code, true));
+  $('keytoggle').addEventListener('click', () => {
+    if (keyboard.closest('.piano').hidden) releaseAll();
+  });
   window.addEventListener('blur', releaseAll);
   document.addEventListener('visibilitychange', () => {if (document.hidden) releaseAll()});
   viewport.addEventListener('wheel', e => {

@@ -45,3 +45,102 @@ main{min-height:0;overflow:hidden}
 .octaves{display:flex;gap:4px;margin-left:auto;margin-right:12px}
 .piano .panelhead{flex-wrap:wrap;gap:4px}
 @media(max-width:420px){.piano .panelhead{padding-inline:6px}.octaves{margin-right:0}.octaves button{padding:3px}.piano .panelhead label{font-size:11px}}
+
+#engravedScore {
+  min-width: 100%;
+  width: max-content;
+  padding: 12px 0 8px;
+  background: #fff;
+  color: #191713;
+}
+#engravedTitle {
+  display: block;
+  margin: 0;
+  padding-top: 16px;
+  background: #fff;
+  color: #191713;
+  text-align: center;
+  font: 650 clamp(1.1rem, 2vw, 1.65rem)/1.3 Georgia, "Noto Serif TC", serif;
+  letter-spacing: normal;
+  text-transform: none;
+}
+#scoreViewport {
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: auto;
+  background: #fff;
+  scrollbar-color: #8191a5 #edf1f6;
+}
+#scoreViewport:focus-visible { outline: 2px solid #008f74; outline-offset: -2px; }
+#engravedScore > svg { display: block; }
+#engravedScore .note, #engravedScore .chord { cursor: pointer; }
+#engravedScore .measure.score-current > .barLine { color: #087766; }
+#engravedScore .note.score-current, #engravedScore .chord.score-current { color: #087766; }
+#engravedScore .measure, #engravedScore .note, #engravedScore .chord { pointer-events: bounding-box; }
+
+.sidebar-footer { margin-top: auto; }
+.sidebar-footer .local { margin: 0; padding: 10px 0 0; }
+.shortcut-guide { border-top: 1px solid var(--line); padding-top: 9px; color: var(--muted); font-size: 11px; }
+.shortcut-guide summary { cursor: pointer; font-weight: 650; }
+.shortcut-guide dl { margin: 6px 0 0; }
+.shortcut-guide dl div { display: flex; justify-content: space-between; gap: 4px; align-items: baseline; margin-top: 4px; }
+.shortcut-guide dd { margin: 0; white-space: nowrap; }
+.shortcut-guide kbd { display: inline-block; border-radius: 3px; background: #243249; color: #e5effa; padding: 1px 4px; }
+@media (max-width:720px) {
+  .sidebar-footer { grid-column: 1 / -1; }
+  .shortcut-guide dl { display: grid; grid-template-columns: repeat(auto-fit,minmax(145px,1fr)); gap: 4px 12px; }
+  .sidebar-footer .local { display: none; }
+}
+
+#engravedScore { position: relative; }
+.score-position {
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+.playhead-marker { border-left: 2px solid #008f74; }
+.playhead-marker::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  left: -5px;
+  border: 4px solid transparent;
+  border-top: 6px solid #008f74;
+}
+.cue-marker { border-left: 2px dashed #ca5a19; }
+.cue-marker span {
+  position: absolute;
+  top: -15px;
+  left: -2px;
+  border-radius: 3px 3px 3px 0;
+  background: #a7410b;
+  color: white;
+  padding: 1px 4px;
+  font: 650 10px/13px system-ui,sans-serif;
+}
+#cueHere { color: #ffd0a7; }
+.rehearsal-tools { margin-left: auto; flex-wrap: wrap; }
+.tool-icon { width: 1.1em; height: 1.1em; flex: none; vertical-align: -.2em; }
+#click, #popmetro, #openTuning, #metroTitle { display: inline-flex; align-items: center; gap: 5px; }
+#tuningFork, #instrumentDialog {
+  background: #101a2b;
+  color: #edf4ff;
+  border: 1px solid #43566f;
+  border-radius: 9px;
+  padding: 16px;
+  width: min(340px,calc(100vw - 24px));
+}
+#tuningFork { inset: 0 12px auto auto; margin: min(15vh,120px) 0 0; }
+#tuningFork h2 { margin: 0 0 14px; }
+#tuningFrequency { display: block; margin: 10px 0; color: var(--muted); }
+#tuningError:empty { display: none; }
+#instrumentDialog::backdrop { background: #020812b3; }
+.instrument-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+#instrumentSearch { display: block; width: 100%; margin: 5px 0 10px; padding: 7px; }
+#instrumentResults { display: grid; gap: 3px; max-height: min(45vh,350px); overflow: auto; }
+#instrumentResults button { text-align: left; }
+.strip .instrument-picker { display: block; width: 100%; margin: 0; text-align: left; font-size: 12px; }
+#engravedScore [id^="bar-number-"] { color: #43536a; pointer-events: none; }
+#engravedScore .staff-label { pointer-events: none; }

@@ -1,0 +1,46 @@
+---
+import MetronomeIcon from '../components/MetronomeIcon.astro';
+import TuningForkIcon from '../components/TuningForkIcon.astro';
+---
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>midi-mixer · Rehearsal studio</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="studio.css"></head><body>
+<aside><div class="brand"><span class="logo">♫</span><div>midi-mixer<small>Rehearsal studio</small></div></div>
+<button id="import" class="import">＋ Load MIDI files</button><input hidden type="file" id="upload" accept=".mid,.midi,audio/midi" multiple><input type="search" placeholder="Filter songs…" aria-label="Filter songs" id="filter">
+<div class="libhead">Rehearsal playlist <span id="filecount"></span></div><nav id="files"></nav><footer class="sidebar-footer">
+<details class="shortcut-guide" open><summary>Keyboard shortcuts</summary>
+<dl><div><dt>Play / Pause</dt><dd><kbd>Space</kbd></dd></div>
+<div><dt>Natural notes</dt><dd><kbd>A–'</kbd></dd></div>
+<div><dt>Sharps / flats</dt><dd><kbd>W–P</kbd></dd></div>
+<div><dt>Octave down / up</dt><dd><kbd>Z</kbd> <kbd>X</kbd></dd></div>
+<div><dt>Return to cue</dt><dd><kbd>R</kbd></dd></div>
+<div><dt>Toggle loop</dt><dd><kbd>Shift</kbd> <kbd>L</kbd></dd></div></dl>
+</details><div class="local">Imported files stay on this device.</div></footer></aside>
+<main><header class="transport"><div class="cluster"><button id="home" aria-label="Return to start cue">Ⅰ◀</button><button id="play">▶ Play</button><button id="click" aria-pressed="false"><MetronomeIcon /> Click</button></div>
+<div class="song"><h1 id="title"></h1><small id="meta"></small></div><div class="readout"><small>BAR : BEAT</small><strong id="beatpos">1 : 1</strong></div><div class="readout"><small>TIME</small><span id="clock"></span></div>
+<label>BPM <input type="number" id="tempoBpm" min="30" max="190" step="any" aria-label="Playback tempo in BPM"></label><label>Speed <select id="rate" aria-label="Playback speed"></select></label><div class="cluster"><button id="loop" aria-pressed="false">⟳ Loop</button><label>A <input id="a" type="number" min="1" value="1"></label><label>B <input id="b" type="number" min="1" value="4"></label></div>
+<div class="cluster cue-controls"><label>Start bar <input id="startBar" type="number" min="1" value="1" disabled></label><button id="cueHere" type="button" disabled>Cue Here</button></div>
+<div class="cluster rehearsal-tools"><button id="popmetro" aria-haspopup="dialog" aria-controls="metroPanel" aria-expanded="false"><MetronomeIcon /> Metronome</button>
+<button id="openTuning" type="button" popovertarget="tuningFork"><TuningForkIcon /> Tuning fork</button></div></header>
+<div class="toolbar"><label><input id="all" type="checkbox"> All tracks</label><button id="group" disabled>Mute selected</button><button id="solosel" disabled>Solo selected</button><button id="reset">Reset mix</button><label>Staff labels <select id="staffLabels"><option value="none">None</option><option value="note">Note names</option><option value="solfa">Sol-fa</option></select></label><div class="pager"><button id="prev" aria-label="Scroll to earlier bars">‹</button><span id="bars"></span><button id="next" aria-label="Scroll to later bars">›</button></div><button id="followScore" type="button" aria-pressed="true">Follow</button><button id="keytoggle" aria-pressed="true">▥ Keys</button></div>
+<input id="seek" type="range" min="0" step=".01" value="0" aria-label="Playback position">
+<div class="workspace"><div class="lanes"><section class="strip"><h2>Track mixer</h2><table><tbody id="rows"></tbody></table></section><div id="scorewrap"><h2 id="engravedTitle" hidden></h2><div id="scoreViewport" tabindex="0" role="region" aria-label="Scrollable MIDI score" hidden><div id="engravedScore"></div></div><svg id="score" hidden aria-label="Score. Click a position to start there."></svg></div></div><output id="status" role="status"></output></div>
+<section class="piano"><div class="panelhead"><h2>▥　Sound check piano</h2><div class="octaves"><button id="lowerKeys" aria-label="Scroll one octave lower">−8ve</button><button id="higherKeys" aria-label="Scroll one octave higher">+8ve</button></div><button id="sustain" type="button" aria-pressed="false">Sustain</button><button id="silenceKeys" type="button" disabled>Release notes</button><div class="piano-sound"><button type="button" class="instrument-picker" aria-haspopup="dialog" data-instrument-select="pianoVoice">Sound: Piano</button><select id="pianoVoice" hidden></select></div><label>Shortcut octave <select id="octave" aria-label="Piano starting octave"></select></label></div><div class="pianoscroll"><div id="keys" aria-label="Practice piano keys"></div></div></section>
+</main><dialog id="metroPanel" aria-labelledby="metroTitle"><div id="metroHandle"><strong id="metroTitle"><MetronomeIcon /> Metronome</strong><button id="closeMetro" aria-label="Close metronome">×</button></div><div id="metroBody"></div></dialog>
+<section id="tuningFork" popover aria-labelledby="tuningTitle">
+  <h2 id="tuningTitle"><TuningForkIcon /> Tuning fork</h2>
+  <label>Pitch <select id="tuningPitch"></select></label>
+  <output id="tuningFrequency" for="tuningPitch"></output>
+  <button id="tuningPlay" type="button">Play tone</button>
+  <p id="tuningError" role="status"></p>
+</section>
+<dialog id="instrumentDialog" aria-labelledby="instrumentTitle">
+  <form method="dialog" class="instrument-heading"><h2 id="instrumentTitle">Choose an instrument</h2><button aria-label="Close instrument picker">×</button></form>
+  <label for="instrumentSearch">Search instruments</label>
+  <input type="search" id="instrumentSearch" autocomplete="off" autofocus>
+  <div id="instrumentResults"></div>
+  <p id="instrumentEmpty" role="status" hidden>No matching instruments.</p>
+</dialog>
+<script is:inline src="repertoire.js"></script><script is:inline src="floating.js"></script><script is:inline src="midi.js"></script><script is:inline src="clefs.js"></script><script is:inline src="tick.js"></script><script is:inline src="player.js"></script><script is:inline src="piano.js"></script><script is:inline src="rehearsal-tools.js"></script></body></html>
+
+<script>
+  import "../scripts/engraved-score.js";
+</script>
