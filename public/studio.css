@@ -451,3 +451,7 @@ select:disabled{opacity:.45;cursor:default}
 .app-toast button{background:var(--accent);color:#fff;font-weight:600;height:32px;padding:0 14px;border-radius:8px}
 .app-toast:not(:has(button:not([hidden]))){padding-right:16px}
 @keyframes toast-in{from{opacity:0;transform:translate(-50%,10px)}}
+.repo-link{display:inline-flex;align-items:center;gap:7px;margin-top:10px;font-size:12px;color:var(--muted);text-decoration:none;border-radius:6px}
+.repo-link svg{width:15px;height:15px;flex:none}
+.repo-link:hover{color:#f5f5f7}
+.repo-link:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
