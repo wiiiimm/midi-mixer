@@ -35,7 +35,7 @@
     $('tuningError').textContent = '';
     try {
       await enableAudio();
-      if (request !== generation || !panel.matches(':popover-open')) return;
+      if (request !== generation || !panel.open) return;
       const osc = ctx.createOscillator(), gain = ctx.createGain();
       osc.type = 'sine';
       osc.frequency.value = frequency();
@@ -51,7 +51,7 @@
     }
   };
   pitch.onchange = updatePitch;
-  panel.addEventListener('beforetoggle', event => { if (event.newState === 'closed') stopTone(); });
+  floatingWindows.register({panel, opener: $('openTuning'), onClose: stopTone});
   document.addEventListener('visibilitychange', () => { if (document.hidden) stopTone(); });
   updatePitch();
 })();

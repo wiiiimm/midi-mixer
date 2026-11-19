@@ -64,7 +64,7 @@ function staffLabel(pitch, key, mode) {
   return sharpNames[pitch % 12] + (Math.floor(pitch / 12) - 1);
 }
 
-staffLabels.onchange = () => { if (song) score(); };
+staffLabels.onchange = () => { if (song) appLoading.during('Updating staff labels…', score); };
 const staffSteps = [0,0,1,1,2,3,3,4,4,5,5,6];
 function noteY(pitch, top, reference) {
   const step = (Math.floor(pitch / 12) - 1) * 7 + staffSteps[pitch % 12];
@@ -414,7 +414,7 @@ $('rows').onclick=e=>{let k=e.target.dataset.k;if(k==='mute'||k==='solo'){let m=
 $('group').onclick=()=>{let sel=mix.filter(m=>m.selected),v=!sel.every(m=>m.mute);sel.forEach(m=>m.mute=v);mixer()};$('all').onchange=e=>{mix.forEach(m=>m.selected=e.target.checked);mixer()};
 function reset(){mix=song.tracks.map(t=>({inst:t.inst,vol:80,solo:false,mute:false,selected:false}));song.mix=mix;mixer()}$('reset').onclick=()=>{reset();if(playing)restart()};
 function library(){$('filecount').textContent=songs.length;$('files').innerHTML=songs.map((s,i)=>'<button data-index="'+i+'" class="'+(s===song?'active':'')+'"><span class="fileicon">♫</span><span>'+esc(s.title)+'<small>'+s.tracks.length+' tracks · '+time(s.duration)+'</small></span></button>').join('');filterSongs()}
-$('files').onclick=e=>{const b=e.target.closest('button');if(b)select(songs[+b.dataset.index])};
+$('files').onclick=e=>{const b=e.target.closest('button');if(!b)return;const next=songs[+b.dataset.index];if(next===song)return;appLoading.during('Loading '+next.title+'…',()=>select(next))};
 function select(s){playing=false;stopNotes();buses.forEach(g=>g.disconnect());buses=[];song=s;pos=page=cue=0;$('startBar').max=s.bars.length-1;$('startBar').value=1;scoreWorkspace.scrollTop=0;looping=false;$('loop').setAttribute('aria-pressed',false);$('play').textContent='▶　Play';$('a').max=$('b').max=s.bars.length-1;$('a').value=1;$('b').value=Math.min(4,s.bars.length-1);$('seek').max=s.duration;$('title').textContent=s.title;$('meta').textContent=s.tracks.length+' tracks　·　'+(s.bars.length-1)+' bars';if(s.mix){mix=s.mix;mixer()}else reset();library();score();display();window.dispatchEvent(new Event("pianosong"))}
 function moveScore(direction){
   if(engravedView){
@@ -510,7 +510,7 @@ $('filter').oninput=filterSongs;
 
 let dbp=new Promise(resolve=>{try{const req=indexedDB.open('partbook-midi',1);req.onupgradeneeded=()=>req.result.createObjectStore('scores',{keyPath:'id'});req.onsuccess=()=>resolve(req.result);req.onerror=()=>resolve(null)}catch{resolve(null)}});
 async function saveFile(item){let db=await dbp;if(!db)return false;return new Promise(resolve=>{const tx=db.transaction('scores','readwrite');tx.objectStore('scores').put(item);tx.oncomplete=()=>resolve(true);tx.onerror=tx.onabort=()=>resolve(false)})}
-$('import').onclick=()=>$('upload').click();$('upload').onchange=async e=>{let first,errors=[];for(const f of Array.from(e.target.files)){try{const data=await f.arrayBuffer(),name=f.name.replace(/\.midi?$/i,''),id=f.name+'|'+f.size+'|'+f.lastModified;let s=songs.find(t=>t.id===id);if(!s){s=parseMidi(data,name);s.id=id;songs.push(s);if(!await saveFile({id,name,data}))errors.push(f.name+' is available for this session only.')}first??=s}catch(err){errors.push(f.name+' — '+err.message)}}if(first){select(first);refreshLibrary()}$('status').textContent=errors.join(' ');e.target.value=''};
+$('import').onclick=()=>$('upload').click();$('upload').onchange=e=>{const files=Array.from(e.target.files);if(files.length)appLoading.during('Loading '+(files.length===1?files[0].name:files.length+' MIDI files')+'…',()=>importFiles(e,files))};async function importFiles(e,files){let first,errors=[];for(const f of files){try{const data=await f.arrayBuffer(),name=f.name.replace(/\.midi?$/i,''),id=f.name+'|'+f.size+'|'+f.lastModified;let s=songs.find(t=>t.id===id);if(!s){s=parseMidi(data,name);s.id=id;songs.push(s);if(!await saveFile({id,name,data}))errors.push(f.name+' is available for this session only.')}first??=s}catch(err){errors.push(f.name+' — '+err.message)}}if(first){select(first);refreshLibrary()}$('status').textContent=errors.join(' ');e.target.value=''};
 function refreshLibrary() {
   if (!song && songs.length) select(songs[0]);
   else library();
@@ -531,6 +531,7 @@ async function openLibrary() {
   const failures = results.filter(r => r.status === 'rejected');
   if (failures.length) $('status').textContent = failures.map(r => r.reason.message).join(' ');
   refreshLibrary();
+  window.dispatchEvent(new Event('library-ready'));
   const db = await dbp;
   if (!db) return;
   const request = db.transaction('scores').objectStore('scores').getAll();
