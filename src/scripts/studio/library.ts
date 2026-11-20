@@ -239,10 +239,20 @@ function sortSongs() {
   studio.songs.sort((a, b) => rank(a) - rank(b));
 }
 
-async function restoreSamples() {
+let restoring: Promise<void> | undefined;
+
+/** Puts back sample songs missing from the playlist. Repeat clicks share one restore. */
+function restoreSamples(): Promise<void> {
+  restoring ??= restoreMissingSamples().finally(() => { restoring = undefined; });
+  return restoring;
+}
+
+async function restoreMissingSamples() {
   const missing = new Set(bundledSongs.map(([, path]) => path).filter(path => !studio.songs.some(s => s.id === bundledId(path))));
   if (!missing.size) return;
   for (const file of await fetchBundled(missing)) {
+    // The playlist may have changed while fetching (an Undo, or the saved playlist loading).
+    if (studio.songs.some(s => s.id === file.id)) continue;
     try {
       studio.songs.push(songFrom(file));
       if (blocked) void saveFile(file); else await saveFile(file);
@@ -308,11 +318,17 @@ export async function openLibrary(): Promise<void> {
 /** Reads the saved playlist, copying the sample songs in on first visit. */
 async function loadStored(db: IDBDatabase): Promise<StoredFile[]> {
   const unsaved: StoredFile[] = [];
-  if (!await run<unknown>(db, PREFS, 'readonly', s => s.get(SEEDED))) {
-    const samples = await fetchBundled();
+  // SEEDED is true once every sample has been copied in, or else the ids copied so
+  // far, so a later retry adds only the missing samples and never one the user removed.
+  const seeded = await run<unknown>(db, PREFS, 'readonly', s => s.get(SEEDED));
+  if (seeded !== true) {
+    const done = new Set(Array.isArray(seeded) ? seeded.filter((id): id is string => typeof id === 'string') : []);
+    const pending = new Set(bundledSongs.map(([, path]) => path).filter(path => !done.has(bundledId(path))));
+    const samples = await fetchBundled(pending);
     const saved = await Promise.all(samples.map(saveFile));
-    unsaved.push(...samples.filter((_, i) => !saved[i]));
-    if (samples.length === bundledSongs.length && saved.every(Boolean)) await run(db, PREFS, 'readwrite', s => s.put(true, SEEDED));
+    samples.forEach((file, i) => { if (saved[i]) done.add(file.id); else unsaved.push(file); });
+    const all = bundledSongs.every(([, path]) => done.has(bundledId(path)));
+    await run(db, PREFS, 'readwrite', s => s.put(all ? true : [...done], SEEDED));
     if (unsaved.length) noteSessionOnly(unsaved);
   }
   const stored = (await run<StoredFile[]>(db, SCORES, 'readonly', s => s.getAll())) ?? [];
