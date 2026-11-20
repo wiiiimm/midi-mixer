@@ -69,3 +69,17 @@ Astro writes the static site to `dist/`.
 | `src/scripts/tools/` | Practice piano, tuning fork and metronome. |
 | `src/scripts/ui/` | Loading screen, responsive drawer, floating windows, instrument picker and offline support. |
 | `public/` | Styles, bundled MIDI files, icons, the web app manifest and the service worker. |
+
+## Licence
+
+Copyright © 2026 wiiiimm.
+
+The `midi-mixer` source code is licensed under the **GNU General Public License v3.0 or later** (`GPL-3.0-or-later`). See [LICENSE](LICENSE) for the full licence text.
+
+### Bundled songs and reference scores
+
+The bundled MIDI files in `public/` (`*.mid`) and score PDFs in `reference/scores/` are musical works whose copyright remains with their respective rights holders. They are **not** covered by the GPL-3.0 licence.
+
+### Third-party notices
+
+This project uses open-source libraries, font glyph outlines and General MIDI soundfont samples. See [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md) and [public/font-licence.txt](public/font-licence.txt) for details.
