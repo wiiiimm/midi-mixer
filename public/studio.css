@@ -142,6 +142,14 @@ aside{display:flex;flex-direction:column;overflow:hidden}
 
 .lanes{min-height:100%;grid-template-columns:clamp(184px,15vw,224px) minmax(0,1fr)}
 .strip{border-right:1px solid var(--line)}
+.vocal-tools{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:4px;padding:6px 8px;border-bottom:1px solid var(--line)}
+#vocalsByPart{grid-column:1 / -1}
+.vocal-tools span{font-size:12px;color:var(--muted)}
+.vocal-tools button{font-size:11px;padding:4px 5px}
+@media(max-width:720px){
+  .mix-panel .vocal-tools{margin-bottom:10px;padding:10px;gap:8px;border:0;border-radius:12px;background:#1c1c1e}
+  .mix-panel .vocal-tools button{font-size:13px;padding:8px}
+}
 .mix-tools{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:6px 8px;border-bottom:1px solid var(--line);background:#1c1c1e}
 .mix-tools label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);white-space:nowrap}
 .mix-tools button{font-size:11px;padding:4px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -455,3 +463,28 @@ select:disabled{opacity:.45;cursor:default}
 .repo-link svg{width:15px;height:15px;flex:none}
 .repo-link:hover{color:#f5f5f7}
 .repo-link:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+/* Playlist rows: select the song, or remove it from this browser */
+.song-row{position:relative;display:flex;align-items:center;margin:2px 0}
+.song-row[hidden]{display:none}
+.song-row .song{flex:1;min-width:0;margin:0;padding-right:38px}
+nav .song-remove{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px;height:26px;margin:0;padding:0;display:grid;place-items:center;border-radius:50%;background:transparent;color:var(--muted);opacity:0;transition:opacity .15s,background .15s}
+.song-remove svg{width:12px;height:12px;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;fill:none}
+.song-row:hover .song-remove,.song-remove:focus-visible{opacity:1}
+nav .song-remove:hover{background:#ff453a33;color:#ff6961}
+.song-row .song.active~.song-remove{color:#ffffffd9}
+.song-row .song.active~.song-remove:hover{background:#ffffff33;color:#fff}
+@media (hover:none){nav .song-remove{opacity:1}}
+.restore-samples{background:transparent;border:0;color:var(--accent);font-size:13px;padding:6px 0;text-align:left}
+.restore-samples:hover{text-decoration:underline;filter:none}
+/* Section bar: its own row of chips (from the MIDI markers) that scrolls sideways,
+   so songs with many sections fit. A chip jumps, cues and loops that section. */
+.section-bar{flex:none;display:flex;align-items:center;gap:10px;min-width:0;padding:6px 0 6px 12px;background:var(--bar);border-bottom:1px solid var(--line)}
+.section-bar[hidden]{display:none}
+.section-bar-label{flex:none;font-size:11px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+.section-chips{position:relative;flex:1;min-width:0;display:flex;gap:6px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;padding:0 24px 0 6px;-webkit-mask-image:linear-gradient(to right,transparent 0,#000 8px,#000 calc(100% - 24px),transparent);mask-image:linear-gradient(to right,transparent 0,#000 8px,#000 calc(100% - 24px),transparent)}
+.section-chips::-webkit-scrollbar{display:none}
+.section-chip{flex:none;min-width:36px;height:30px;padding:0 12px;border-radius:15px;background:var(--fill,#2c2c2e);border:1px solid transparent;color:#f5f5f7;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+.section-chip.now{border-color:#0a84ff99}
+.section-chip[aria-pressed=true]{background:var(--accent,#0a84ff);color:#fff;border-color:transparent}
+.section-chip[aria-pressed=true]:hover{background:#409cff}
+@media (max-width:860px){.section-bar{padding:5px 0 5px 10px}.section-bar-label{display:none}.section-chip{height:32px;min-width:44px}}

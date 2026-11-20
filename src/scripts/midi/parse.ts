@@ -104,11 +104,11 @@ export function parseMidi(bytes: ArrayBuffer, title: string): Song {
       if (status === 255) {
         const type = read(1), n = variableLength(), stop = p + n;
         if (stop > limit) throw Error('Incomplete MIDI event.');
-        if (type === 3 || type === 5 || type === 6) {
+        if (type === 3 || type === 5 || type === 6 || type === 7) {
           const text = new TextDecoder().decode(new Uint8Array(bytes, p, n)).replace(/\0/g, '').trim();
           if (type === 3) name = text;
           if (type === 5 && text) lyrics.set(tick / ppq, text);
-          if (type === 6 && text) markers.push({q: tick / ppq, text});
+          if ((type === 6 || type === 7) && text) markers.push({q: tick / ppq, text});
         }
         if (type === 81 && n === 3) {
           const us = read(3);

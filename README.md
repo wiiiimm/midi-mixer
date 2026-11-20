@@ -1,6 +1,6 @@
 # midi-mixer
 
-A browser-based rehearsal studio for singers learning parts from MIDI files. Follow the score, bring your part forward in the mix and loop tricky passages at a comfortable tempo. Three songs are included so you can try it before importing your own.
+A browser-based MIDI rehearsal studio for singers and a cappella groups. Follow the score, bring your part forward in the mix and loop tricky passages at a comfortable tempo. Three songs are included so you can try it before importing your own.
 
 ## Run locally
 
@@ -19,11 +19,15 @@ Open [midi-mixer](http://127.0.0.1:8000). The Astro dev server refreshes open pa
 2. Use the **Track mixer** to solo your part, mute other parts or adjust their levels. Click a track’s instrument to search for a different sound. Select several tracks to mute or solo them together.
 3. Click a note or measure to move the green playhead. Use **Cue Here**, Shift-click the score or enter a **Start bar** to set the orange cue. Press **R** to return to it. Adjust **BPM** or **Speed** to practise more slowly without changing pitch.
 4. Use **Staff labels** to show note names or movable-do sol-fa beneath the staves. The default is **None**. Sol-fa follows the MIDI key signature and uses C as Do when the file has no key signature.
-5. Set the **A** and **B** bar numbers and turn on **Loop** to repeat a passage. Use **Click** for a beat aligned with the song, or open **Metronome** to set your own tempo and beats per bar.
+5. If the MIDI file has section markers (such as V1, PC1, C1 or Bridge), tap a section under **Sections** to jump there. This also sets the start cue and the loop bars to that section, so turning on **Loop** repeats just that section. Otherwise, set the **A** and **B** bar numbers and turn on **Loop** to repeat a passage. Use **Click** for a beat aligned with the song, or open **Metronome** to set your own tempo and beats per bar.
 
 Open **Tuning fork** for a steady reference pitch. It defaults to A4 at 440 Hz.
 
 The [standalone metronome](http://127.0.0.1:8000/metronome.html) also works without loading a song.
+
+## Rehearse with an a cappella group
+
+Use a multitrack MIDI arrangement with each vocal part on its own track. Choose **Oohs** or **Aahs** at the top of the mixer to switch the melodic tracks to a vocal sound. **By part** mixes Oohs for upper voices with Aahs for tenor and bass, using each track’s pitch range when its name doesn’t identify the part. **Reset sounds** restores the MIDI instruments and keeps your volume, mute and solo settings. Solo your part to learn it, bring the other parts back in to hear the harmony, then mute your part and sing it against the rest of the arrangement. For sectionals, solo the parts you’re rehearsing together and loop tricky entries or harmonies.
 
 ## Use the practice piano
 
@@ -43,7 +47,7 @@ The PDFs in `reference/scores/` are kept outside the app’s public assets. The 
 
 ## Local storage
 
-Imported files stay in your browser’s IndexedDB and are restored when you revisit the same address. A different browser profile, hostname or port has its own library. Clearing site data removes the imported copies.
+Your playlist is kept in this browser’s IndexedDB. On your first visit the three sample songs are copied in alongside anything you import, and every song, samples included, can be removed with the **×** on its row. **Undo** appears briefly after a removal, and **Restore sample songs** brings back any samples you removed. The playlist belongs to this browser only: a different browser profile, hostname or port has its own playlist, and clearing site data empties it. The app asks the browser to keep this storage persistent so it is not cleared to free space.
 
 In production builds a service worker keeps the app, the bundled songs and any instrument sounds you have used available offline. Sounds that fail to download while offline are fetched again when the connection returns.
 
