@@ -1,5 +1,6 @@
 // Studio entry point. Modules export init functions and this file calls them in
 // a fixed order, so there are no import-time side effects to reason about.
+import { initShortcuts } from './lib/shortcuts';
 import { initPwa } from './ui/pwa';
 import { initBrand, playBrandScale } from './ui/brand';
 import { initFloatingWindows } from './ui/floating-windows';
@@ -16,6 +17,7 @@ import { initMetronomeWindow } from './tools/metronome-window';
 import { initPiano } from './tools/piano';
 import { initTuningFork } from './tools/tuning-fork';
 
+initShortcuts();
 initLoading();
 initFloatingWindows();
 initPlayback();

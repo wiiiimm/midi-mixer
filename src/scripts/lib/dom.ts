@@ -14,7 +14,3 @@ export const formatTime = (seconds: number): string =>
 /** Resolves after the browser has had a chance to paint. */
 export const nextFrame = (): Promise<void> =>
   new Promise(resolve => requestAnimationFrame(() => setTimeout(resolve, 0)));
-
-/** True when a key event comes from a text field or dialog that should keep its keys. */
-export const typingTarget = (event: Event): boolean =>
-  !!(event.target as Element | null)?.closest?.('input,select,textarea,[contenteditable],dialog,[popover]');

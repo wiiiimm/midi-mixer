@@ -1,6 +1,7 @@
 import { currentAudio, enableAudio, startSynthHold } from '../audio/engine';
 import { gmNames, loadInstrument, playSample } from '../audio/sampler';
-import { $, typingTarget } from '../lib/dom';
+import { $ } from '../lib/dom';
+import { shortcutsBlocked } from '../lib/shortcuts';
 import { octaveOf, sharpNames, trackColours } from '../lib/notes';
 import type { StoppableVoice } from '../lib/types';
 import { playable, playbackVoices } from '../studio/playback';
@@ -205,7 +206,7 @@ export function initPiano(): void {
 
   // Computer keys: A–' play notes, Z/X shift the shortcut octave.
   window.addEventListener('keydown', e => {
-    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.isComposing || typingTarget(e)) return;
+    if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey || e.isComposing || shortcutsBlocked(e)) return;
     if (e.shiftKey || piano.hidden) return;
     if (e.code === 'KeyZ' || e.code === 'KeyX') {
       e.preventDefault();
