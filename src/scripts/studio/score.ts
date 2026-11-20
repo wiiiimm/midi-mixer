@@ -256,6 +256,15 @@ export function followFallbackPage(): void {
 }
 
 /** Resets view state for a newly selected song. */
+/** Empties the score area when no song is selected. */
+export function clearScore(): void {
+  engravedView = undefined;
+  engravedScore().innerHTML = '';
+  $('score').innerHTML = '';
+  viewport().hidden = $('engravedTitle').hidden = true;
+  $('score').setAttribute('hidden', '');
+}
+
 export function resetScoreView(): void {
   page = 0;
   $('scorewrap').closest('.workspace')!.scrollTop = 0;
