@@ -43,14 +43,14 @@ function updateVocalControls(): void {
     studio.mix[index].inst === track.inst);
 }
 
-function refreshPlaybackSounds(programs: number[]): void {
+function refreshPlaybackSounds(programs: number[], message = 'Loading instrument sounds…'): void {
   const revision = ++soundRevision, mix = studio.mix;
   if (!studio.playing) {
     for (const program of new Set(programs)) void loadInstrument(program);
     return;
   }
   const currentPrograms = mix.map(channel => channel.inst);
-  void whileBusy('Loading instrument sounds…', () => whenInstrumentsReady(currentPrograms, 12000)).then(() => {
+  void whileBusy(message, () => whenInstrumentsReady(currentPrograms, 12000)).then(() => {
     if (revision === soundRevision && studio.mix === mix && studio.playing) restart();
   });
 }
@@ -90,7 +90,7 @@ function row(song: Song, m: MixChannel, i: number): string {
   return '<tr data-i="' + i + '">' +
     '<td><input type="checkbox" data-k="selected" aria-label="Select ' + name + '" ' + (m.selected ? 'checked' : '') + '></td>' +
     '<td><strong><i class="dot" style="background:' + trackColours[i % trackColours.length] + '"></i>' + name + '</strong></td>' +
-    '<td><button type="button" class="instrument-picker" aria-haspopup="dialog" aria-label="' + name + ' instrument: ' + sound +
+    '<td><button type="button" class="instrument-picker" aria-haspopup="dialog" data-track="' + name + '" aria-label="' + name + ' instrument: ' + sound +
       '" data-instrument-select="trackInstrument' + i + '">' + sound + '</button>' +
       '<select hidden id="trackInstrument' + i + '" data-k="inst">' + options + '</select></td>' +
     '<td><input type="range" data-k="vol" aria-label="' + name + ' volume" min="0" max="100" value="' + m.vol + '"><output>' + m.vol + '%</output></td>' +
@@ -132,7 +132,7 @@ export function initMixer(): void {
       case 'inst':
         m.inst = Number(target.value);
         updateVocalControls();
-        refreshPlaybackSounds([m.inst]);
+        refreshPlaybackSounds([m.inst], 'Loading ' + instruments[m.inst] + '…');
         break;
       case 'selected':
         m.selected = target.checked;

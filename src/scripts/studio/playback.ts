@@ -18,6 +18,8 @@ let scheduled = 0;
 let clickTrack = false;
 const ticks = new Set<OscillatorNode>();
 let finished: () => void = () => {};
+/** Bumped by every play request and every pause; only the latest pending start may begin playback. */
+let startRequest = 0;
 
 /** Called when playback reaches the end of the song (not when looping). */
 export const onPlaybackFinished = (callback: () => void): void => { finished = callback; };
@@ -170,11 +172,13 @@ async function ensureSounds() {
 }
 
 /** Starts playback from the current position (or the cue, at the end of the song). */
-export async function startPlayback(): Promise<void> {
-  const song = studio.song;
-  if (!song) return;
+export async function startPlayback(): Promise<boolean> {
+  const song = studio.song, request = ++startRequest;
+  if (!song) return false;
   const audio = await enableAudio();
   await ensureSounds();
+  // Abandon if a later play request or a pause superseded this one, or another song was picked.
+  if (request !== startRequest || studio.song !== song || studio.playing) return false;
   if (!buses.length) {
     buses = studio.mix.map(() => {
       const bus = audio.ctx.createGain();
@@ -190,9 +194,11 @@ export async function startPlayback(): Promise<void> {
   }
   studio.playing = true;
   restart();
+  return true;
 }
 
 export function pausePlayback(): void {
+  startRequest++; // cancel any start still waiting for sounds
   studio.playing = false;
   stopNotes();
 }

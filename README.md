@@ -47,7 +47,7 @@ The PDFs in `reference/scores/` are kept outside the app’s public assets. The 
 
 ## Local storage
 
-Imported files stay in your browser’s IndexedDB and are restored when you revisit the same address. A different browser profile, hostname or port has its own library. Clearing site data removes the imported copies.
+Your playlist is kept in this browser’s IndexedDB. On your first visit the three sample songs are copied in alongside anything you import, and every song, samples included, can be removed with the **×** on its row. **Undo** appears briefly after a removal, and **Restore sample songs** brings back any samples you removed. The playlist belongs to this browser only: a different browser profile, hostname or port has its own playlist, and clearing site data empties it. The app asks the browser to keep this storage persistent so it is not cleared to free space.
 
 In production builds a service worker keeps the app, the bundled songs and any instrument sounds you have used available offline. Sounds that fail to download while offline are fetched again when the connection returns.
 

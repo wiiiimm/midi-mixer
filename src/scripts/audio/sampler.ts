@@ -52,12 +52,20 @@ export interface SampledVoice extends StoppableVoice { onended: (() => void) | n
 let decoder: OfflineAudioContext | undefined;
 const banks = new Map<number, Bank>();
 const listeners = new Set<(program: number, ok: boolean) => void>();
+/** Failed instruments: when the next automatic attempt may start, and the backoff used. */
+const failures = new Map<number, {retryAt: number; backoff: number}>();
+const FIRST_BACKOFF = 15000, MAX_BACKOFF = 5 * 60 * 1000;
 
-/** Downloads an instrument's samples. Resolves to whether it is playable. */
-export function loadInstrument(program: number): Promise<boolean> {
+/**
+ * Downloads an instrument's samples. Resolves to whether it is playable. After a
+ * failure, automatic calls back off; `force` (e.g. back online) retries at once.
+ */
+export function loadInstrument(program: number, force = false): Promise<boolean> {
   if (!(program >= 0 && program < 128)) return Promise.resolve(false);
   const existing = banks.get(program);
   if (existing) return existing.ready;
+  const failure = failures.get(program);
+  if (failure && !force && Date.now() < failure.retryAt) return Promise.resolve(false);
   decoder ??= new OfflineAudioContext(1, 1, 44100); // AudioBuffers work in any context
   const decode = decoder;
   const bank = {buffers: new Map(), loaded: false} as unknown as Bank;
@@ -67,7 +75,12 @@ export function loadInstrument(program: number): Promise<boolean> {
     bank.buffers.set(pitch, await decode.decodeAudioData(await response.arrayBuffer()));
   })).then(() => {
     bank.loaded = bank.buffers.size > sampleNotes.length / 2;
-    if (!bank.loaded) banks.delete(program); // allow a retry later (e.g. back online)
+    if (bank.loaded) failures.delete(program);
+    else {
+      banks.delete(program); // allow a retry later (after the backoff, or when back online)
+      const backoff = failure ? Math.min(failure.backoff * 2, MAX_BACKOFF) : FIRST_BACKOFF;
+      failures.set(program, {retryAt: Date.now() + backoff, backoff});
+    }
     listeners.forEach(listener => listener(program, bank.loaded));
     return bank.loaded;
   });
@@ -79,7 +92,7 @@ export const isInstrumentReady = (program: number): boolean => !!banks.get(progr
 
 /** Resolves when every program has loaded or failed, or after `timeout` ms. */
 export function whenInstrumentsReady(programs: number[], timeout = 10000): Promise<unknown> {
-  const pending = [...new Set(programs)].filter(p => p < 128 && !isInstrumentReady(p)).map(loadInstrument);
+  const pending = [...new Set(programs)].filter(p => p < 128 && !isInstrumentReady(p)).map(p => loadInstrument(p));
   if (!pending.length) return Promise.resolve();
   return Promise.race([Promise.allSettled(pending), new Promise(resolve => setTimeout(resolve, timeout))]);
 }
@@ -108,16 +121,24 @@ export function playSample(ctx: BaseAudioContext, program: number, pitch: number
     source.loopEnd = buffer.duration * .75;
   }
   const level = 3.5 * velocity; // soundfont samples are recorded quietly; match the synth level
+  const attack = .006;
   amp.gain.setValueAtTime(0, when);
-  amp.gain.linearRampToValueAtTime(level, when + .006);
+  amp.gain.linearRampToValueAtTime(level, when + attack);
   source.connect(amp).connect(destination);
   source.start(when);
+  let releaseAt = Infinity;
   const voice: SampledVoice = {
     stop(at = ctx.currentTime) {
       at = Math.max(at, ctx.currentTime);
+      if (at >= releaseAt) return; // an earlier release is already scheduled
+      // Hold the envelope's value at the release time: the live value for an immediate
+      // stop (it may already be releasing), otherwise where the attack will be by then.
+      const value = at <= ctx.currentTime ? amp.gain.value
+        : at <= when ? 0 : level * Math.min(1, (at - when) / attack);
       amp.gain.cancelScheduledValues(at);
-      amp.gain.setValueAtTime(amp.gain.value, at);
+      amp.gain.setValueAtTime(value, at);
       amp.gain.setTargetAtTime(0, at, .06);
+      releaseAt = at;
       try { source.stop(at + .35); } catch { /* already stopped */ }
     },
     onended: null,

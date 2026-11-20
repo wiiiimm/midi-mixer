@@ -1,20 +1,8 @@
 import { loadInstrument, onInstrumentLoad, sampleUrls } from '../audio/sampler';
-import { $ } from '../lib/dom';
+import { notify } from './toast';
 
 // Offline support: service worker registration, update prompt, offline notice and
 // background sync for instrument sounds that failed to download.
-
-let hideTimer: ReturnType<typeof setTimeout> | undefined;
-function notify(text: string, action?: string, onAction?: () => void, sticky = false) {
-  const toast = $('appToast'), button = $<HTMLButtonElement>('appToastAction');
-  $('appToastText').textContent = text;
-  button.hidden = !action;
-  button.textContent = action ?? '';
-  button.onclick = onAction ?? null;
-  toast.hidden = false;
-  clearTimeout(hideTimer);
-  if (!sticky) hideTimer = setTimeout(() => { toast.hidden = true; }, 5000);
-}
 
 type PeriodicSyncRegistration = ServiceWorkerRegistration & {
   periodicSync?: {register(tag: string, options: {minInterval: number}): Promise<void>};
@@ -27,7 +15,7 @@ export function initPwa(): void {
   window.addEventListener('offline', () => notify('You’re offline. Saved songs and sounds still work.'));
   window.addEventListener('online', () => {
     notify('Back online.');
-    for (const program of failed) loadInstrument(program);
+    for (const program of failed) loadInstrument(program, true);
   });
 
   const enabled = document.querySelector<HTMLMetaElement>('meta[name="service-worker"]')?.content === 'on';
@@ -79,7 +67,7 @@ export function initPwa(): void {
   });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'samples-synced') return;
-    for (const program of failed) loadInstrument(program);
+    for (const program of failed) loadInstrument(program, true);
     if (!event.data.remaining) notify('Instrument sounds downloaded for offline use.');
   });
 }
