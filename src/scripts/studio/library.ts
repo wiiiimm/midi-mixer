@@ -29,6 +29,13 @@ const DB_NAME = 'partbook-midi', SCORES = 'scores', PREFS = 'prefs';
 const SEEDED = 'bundled-seeded';
 const bundledId = (path: string) => 'bundled:' + path;
 
+// Resolves once another tab (running an older version) stops this tab's database
+// upgrade. The upgrade is not abandoned: `database` still resolves when that tab
+// closes, and the saved playlist is loaded then.
+let markBlocked: () => void = () => {};
+const upgradeBlocked = new Promise<void>(resolve => { markBlocked = resolve; });
+let blocked = false;
+
 const database: Promise<IDBDatabase | null> = new Promise(resolve => {
   try {
     const request = indexedDB.open(DB_NAME, 2);
@@ -37,8 +44,15 @@ const database: Promise<IDBDatabase | null> = new Promise(resolve => {
       if (!db.objectStoreNames.contains(SCORES)) db.createObjectStore(SCORES, {keyPath: 'id'});
       if (!db.objectStoreNames.contains(PREFS)) db.createObjectStore(PREFS);
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = request.onblocked = () => resolve(null);
+    request.onsuccess = () => {
+      const db = request.result;
+      // Let a newer version of the app in another tab upgrade without being blocked by this one.
+      db.onversionchange = () => db.close();
+      blocked = false;
+      resolve(db);
+    };
+    request.onerror = () => resolve(null);
+    request.onblocked = () => { blocked = true; markBlocked(); };
   } catch {
     resolve(null);
   }
@@ -166,7 +180,10 @@ async function importFiles(list: File[]) {
         const stored: StoredFile = {id, name, data, added: Date.now()};
         song = songFrom(stored);
         studio.songs.push(song);
-        if (!await saveFile(stored)) errors.push(file.name + ' is available for this session only.');
+        const saving = saveFile(stored);
+        // While another tab blocks the upgrade, the save completes once that tab closes.
+        if (blocked) errors.push(file.name + ' will be saved once other midi-mixer tabs are closed.');
+        else if (!await saving) errors.push(file.name + ' is available for this session only.');
       }
       first ??= song;
     } catch (error) {
@@ -228,7 +245,7 @@ async function restoreSamples() {
   for (const file of await fetchBundled(missing)) {
     try {
       studio.songs.push(songFrom(file));
-      await saveFile(file);
+      if (blocked) void saveFile(file); else await saveFile(file);
     } catch { /* fetchBundled already reported unreachable files */ }
   }
   sortSongs();
@@ -262,28 +279,66 @@ export function initLibrary(): void {
  */
 export async function openLibrary(): Promise<void> {
   refreshLibrary();
-  const db = await database;
-  let stored: StoredFile[] = [];
-  if (db) {
-    const unsaved: StoredFile[] = [];
-    if (!await run<unknown>(db, PREFS, 'readonly', s => s.get(SEEDED))) {
-      const samples = await fetchBundled();
-      const saved = await Promise.all(samples.map(saveFile));
-      unsaved.push(...samples.filter((_, i) => !saved[i]));
-      if (samples.length === bundledSongs.length && saved.every(Boolean)) await run(db, PREFS, 'readwrite', s => s.put(true, SEEDED));
-      if (unsaved.length) noteSessionOnly(unsaved);
-    }
-    stored = (await run<StoredFile[]>(db, SCORES, 'readonly', s => s.getAll())) ?? [];
-    for (const file of unsaved) {
-      if (!stored.some(saved => saved.id === file.id)) stored.push(file);
-    }
-  } else {
-    stored = await fetchBundled();
+  const opened = await Promise.race([database, upgradeBlocked.then(() => 'blocked' as const)]);
+  if (opened !== 'blocked') {
+    addFiles(opened ? await loadStored(opened) : await fetchBundled());
+    return;
   }
-  for (const file of stored) {
+  // A tab running an older version holds the database. Show the samples now and
+  // load the saved playlist as soon as that tab closes.
+  notify('Close other midi-mixer tabs to load your saved songs.', undefined, undefined, true);
+  addFiles(await fetchBundled());
+  database.then(async db => {
+    if (!db) {
+      notify('Saved songs could not be opened. Songs you add now last for this session only.');
+      return;
+    }
+    const stored = await loadStored(db);
+    const ids = new Set(stored.map(file => file.id));
+    // A sample shown while waiting but removed earlier in this browser goes away again.
+    for (const song of [...studio.songs]) {
+      if (song.id?.startsWith(bundledId('')) && !ids.has(song.id)) dropSong(song);
+    }
+    addFiles(stored);
+    if ($('status').textContent?.includes('once other midi-mixer tabs are closed')) $('status').textContent = '';
+    notify('Your saved songs are loaded.');
+  });
+}
+
+/** Reads the saved playlist, copying the sample songs in on first visit. */
+async function loadStored(db: IDBDatabase): Promise<StoredFile[]> {
+  const unsaved: StoredFile[] = [];
+  if (!await run<unknown>(db, PREFS, 'readonly', s => s.get(SEEDED))) {
+    const samples = await fetchBundled();
+    const saved = await Promise.all(samples.map(saveFile));
+    unsaved.push(...samples.filter((_, i) => !saved[i]));
+    if (samples.length === bundledSongs.length && saved.every(Boolean)) await run(db, PREFS, 'readwrite', s => s.put(true, SEEDED));
+    if (unsaved.length) noteSessionOnly(unsaved);
+  }
+  const stored = (await run<StoredFile[]>(db, SCORES, 'readonly', s => s.getAll())) ?? [];
+  for (const file of unsaved) {
+    if (!stored.some(saved => saved.id === file.id)) stored.push(file);
+  }
+  return stored;
+}
+
+/** Adds files that are not in the playlist yet, then re-sorts and redraws it. */
+function addFiles(list: readonly StoredFile[]) {
+  for (const file of list) {
     if (studio.songs.some(s => s.id === file.id)) continue;
     try { studio.songs.push(songFrom(file)); } catch { /* skip files that no longer parse */ }
   }
   sortSongs();
   refreshLibrary();
+}
+
+/** Takes a song out of the playlist without touching storage. */
+function dropSong(song: Song) {
+  const index = studio.songs.indexOf(song);
+  if (index < 0) return;
+  studio.songs.splice(index, 1);
+  if (song === studio.song) {
+    const next = studio.songs[Math.min(index, studio.songs.length - 1)];
+    if (next) selectSong(next); else clearSelection();
+  }
 }
