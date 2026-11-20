@@ -4,6 +4,7 @@ import MetronomeIcon from '../MetronomeIcon.astro';
 import TuningForkIcon from '../TuningForkIcon.astro';
 ---
   <div class="toolbar">
+    <div class="cluster section-group" data-mobile-home="practice" data-mobile-heading="Sections" hidden><span class="cluster-label" aria-hidden="true">Sections</span><div id="sections" class="section-chips" role="group" aria-label="Jump to a section"></div></div>
     <div class="cluster loop-group" data-mobile-home="practice" data-mobile-heading="Loop"><button id="loop" aria-pressed="false">⟳ Loop</button><label>A <input id="a" type="number" min="1" value="1"></label><label>B <input id="b" type="number" min="1" value="4"></label></div>
     <div class="cluster cue-controls" data-mobile-home="practice" data-mobile-heading="Cue"><label>Start bar <input id="startBar" type="number" min="1" value="1" disabled></label><button id="cueHere" type="button" disabled>Cue Here</button></div>
     <div class="cluster staff-group" data-mobile-home="practice" data-mobile-heading="Score"><label>Staff labels <select id="staffLabels"><option value="none">None</option><option value="note">Note names</option><option value="solfa">Sol-fa</option></select></label></div>

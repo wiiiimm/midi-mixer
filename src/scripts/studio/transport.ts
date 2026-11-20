@@ -68,6 +68,15 @@ function updateCue() {
   updateCursor();
 }
 
+/** Sets loop bars a–b (1-based), pins the start cue at `seconds` and jumps there. */
+export function cueRange(seconds: number, a: number, b: number): void {
+  input('a').value = String(a);
+  input('b').value = String(b);
+  studio.cue = seconds;
+  updateCue();
+  seek(seconds);
+}
+
 function setRate(value: number) {
   studio.rate = value;
   if (studio.playing) restart();

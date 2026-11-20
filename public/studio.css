@@ -476,3 +476,17 @@ nav .song-remove:hover{background:#ff453a33;color:#ff6961}
 @media (hover:none){nav .song-remove{opacity:1}}
 .restore-samples{background:transparent;border:0;color:var(--accent);font-size:13px;padding:6px 0;text-align:left}
 .restore-samples:hover{text-decoration:underline;filter:none}
+/* Section chips: jump, cue and loop a verse, chorus or bridge from the MIDI markers */
+.section-group[hidden],.drawer-group:has(>.section-group[hidden]){display:none}
+.toolbar>.section-group[hidden]+.cluster{border-left:0;padding-left:0}
+.section-group{min-width:0;max-width:100%}
+.cluster-label{font-size:12px;color:var(--muted)}
+.section-chips{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;min-width:0}
+.section-chips::-webkit-scrollbar{display:none}
+.section-chip{flex:none;min-width:34px;height:30px;padding:0 10px;border-radius:15px;background:var(--fill,#2c2c2e);border:1px solid transparent;color:#f5f5f7;font-weight:600;font-variant-numeric:tabular-nums}
+.section-chip.now{border-color:#0a84ff80}
+.section-chip[aria-pressed=true]{background:var(--accent,#0a84ff);color:#fff;border-color:transparent}
+.section-chip[aria-pressed=true]:hover{background:#409cff}
+.drawer-group .section-chips{flex-wrap:wrap;overflow:visible}
+.drawer-group .section-group .cluster-label{display:none}
+.drawer-group .section-chip{height:36px;min-width:44px;border-radius:18px}

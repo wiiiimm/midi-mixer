@@ -8,6 +8,7 @@ import { notify } from '../ui/toast';
 import { useMixFor } from './mixer';
 import { pausePlayback, resetBuses } from './playback';
 import { clearScore, renderScore, resetScoreView } from './score';
+import { renderSections } from './sections';
 import { studio } from './state';
 import { display, resetTransport } from './transport';
 
@@ -118,6 +119,7 @@ export function selectSong(song: Song): void {
   studio.pos = studio.cue = 0;
   resetScoreView();
   resetTransport(song);
+  renderSections(song);
   useMixFor(song);
   renderLibrary();
   renderScore();
@@ -134,6 +136,7 @@ function clearSelection() {
   studio.pos = studio.cue = 0;
   $('rows').innerHTML = '';
   clearScore();
+  renderSections(null);
   $('meta').textContent = 'Import a .mid file or restore the sample songs.';
   $('clock').textContent = '0:00 / 0:00';
   $('beatpos').textContent = '–';
