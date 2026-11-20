@@ -297,13 +297,16 @@ export async function openLibrary(): Promise<void> {
   // A tab running an older version holds the database. Show the samples now and
   // load the saved playlist as soon as that tab closes.
   notify('Close other midi-mixer tabs to load your saved songs.', undefined, undefined, true);
-  addFiles(await fetchBundled());
+  const shown = await fetchBundled();
+  addFiles(shown);
   database.then(async db => {
     if (!db) {
       notify('Saved songs could not be opened. Songs you add now last for this session only.');
       return;
     }
-    const stored = await loadStored(db);
+    // Samples the user removed while waiting must not be copied back in by the first-visit seed.
+    const removed = shown.map(file => file.id).filter(id => !studio.songs.some(s => s.id === id));
+    const stored = await loadStored(db, removed);
     const ids = new Set(stored.map(file => file.id));
     // A sample shown while waiting but removed earlier in this browser goes away again.
     for (const song of [...studio.songs]) {
@@ -315,14 +318,18 @@ export async function openLibrary(): Promise<void> {
   });
 }
 
-/** Reads the saved playlist, copying the sample songs in on first visit. */
-async function loadStored(db: IDBDatabase): Promise<StoredFile[]> {
+/**
+ * Reads the saved playlist, copying the sample songs in on first visit.
+ * `removed` lists sample ids the user removed before storage opened; they are not copied in.
+ */
+async function loadStored(db: IDBDatabase, removed: readonly string[] = []): Promise<StoredFile[]> {
   const unsaved: StoredFile[] = [];
   // SEEDED is true once every sample has been copied in, or else the ids copied so
   // far, so a later retry adds only the missing samples and never one the user removed.
   const seeded = await run<unknown>(db, PREFS, 'readonly', s => s.get(SEEDED));
   if (seeded !== true) {
     const done = new Set(Array.isArray(seeded) ? seeded.filter((id): id is string => typeof id === 'string') : []);
+    for (const id of removed) done.add(id);
     const pending = new Set(bundledSongs.map(([, path]) => path).filter(path => !done.has(bundledId(path))));
     const samples = await fetchBundled(pending);
     const saved = await Promise.all(samples.map(saveFile));
@@ -331,7 +338,7 @@ async function loadStored(db: IDBDatabase): Promise<StoredFile[]> {
     await run(db, PREFS, 'readwrite', s => s.put(all ? true : [...done], SEEDED));
     if (unsaved.length) noteSessionOnly(unsaved);
   }
-  const stored = (await run<StoredFile[]>(db, SCORES, 'readonly', s => s.getAll())) ?? [];
+  const stored = ((await run<StoredFile[]>(db, SCORES, 'readonly', s => s.getAll())) ?? []).filter(file => !removed.includes(file.id));
   for (const file of unsaved) {
     if (!stored.some(saved => saved.id === file.id)) stored.push(file);
   }
