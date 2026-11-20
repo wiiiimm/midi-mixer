@@ -1,7 +1,7 @@
 import { loadInstrument, whenInstrumentsReady } from '../audio/sampler';
 import { $, esc } from '../lib/dom';
 import { trackColours } from '../lib/notes';
-import type { MixChannel, Song } from '../lib/types';
+import type { MixChannel, Song, Track } from '../lib/types';
 import { DRUM_KIT, instruments } from '../midi/parse';
 import { whileBusy } from '../ui/loading';
 import { applyGains, restart } from './playback';
@@ -13,15 +13,31 @@ import { studio } from './state';
 const CHOIR_AAHS = 52, VOICE_OOHS = 53;
 let soundRevision = 0;
 
+type VocalPreset = number | 'by-part';
+
+function vocalProgram(track: Track, preset: VocalPreset): number {
+  if (typeof preset === 'number') return preset;
+  if (/\b(tenors?|baritones?|bass(?:es)?|men|male)\b/i.test(track.name)) return CHOIR_AAHS;
+  if (/\b(sopranos?|altos?|trebles?|descants?)\b/i.test(track.name)) return VOICE_OOHS;
+  const pitches = track.notes.map(note => note.p).sort((a, b) => a - b);
+  return pitches[Math.floor(pitches.length / 2)] < 58 ? CHOIR_AAHS : VOICE_OOHS;
+}
+
+const vocalPresets = [
+  ['voiceOohs', VOICE_OOHS],
+  ['choirAahs', CHOIR_AAHS],
+  ['vocalsByPart', 'by-part'],
+] as const;
+
 function updateVocalControls(): void {
   const song = studio.song;
   if (!song) return;
   const melodicTracks = song.tracks.filter(track => track.inst !== DRUM_KIT);
-  for (const [id, program] of [['voiceOohs', VOICE_OOHS], ['choirAahs', CHOIR_AAHS]] as const) {
+  for (const [id, preset] of vocalPresets) {
     const button = $<HTMLButtonElement>(id);
     button.disabled = melodicTracks.length === 0;
     button.setAttribute('aria-pressed', String(!button.disabled && song.tracks.every((track, index) =>
-      track.inst === DRUM_KIT || studio.mix[index].inst === program)));
+      track.inst === DRUM_KIT || studio.mix[index].inst === vocalProgram(track, preset))));
   }
   $<HTMLButtonElement>('resetSounds').disabled = song.tracks.every((track, index) =>
     studio.mix[index].inst === track.inst);
@@ -39,14 +55,14 @@ function refreshPlaybackSounds(programs: number[]): void {
   });
 }
 
-function applyTrackSounds(vocalProgram?: number): void {
+function applyTrackSounds(preset?: VocalPreset): void {
   const song = studio.song;
   if (!song) return;
   const changed: number[] = [];
   song.tracks.forEach((track, index) => {
     const channel = studio.mix[index];
-    if (vocalProgram !== undefined && track.inst === DRUM_KIT) return;
-    const program = vocalProgram ?? track.inst;
+    if (preset !== undefined && track.inst === DRUM_KIT) return;
+    const program = preset === undefined ? track.inst : vocalProgram(track, preset);
     if (channel.inst === program) return;
     channel.inst = program;
     changed.push(program);
@@ -102,8 +118,7 @@ const freshMix = (song: Song): MixChannel[] =>
 const channelOf = (target: Element) => studio.mix[Number(target.closest('tr')!.dataset.i)];
 
 export function initMixer(): void {
-  $('voiceOohs').addEventListener('click', () => applyTrackSounds(VOICE_OOHS));
-  $('choirAahs').addEventListener('click', () => applyTrackSounds(CHOIR_AAHS));
+  for (const [id, preset] of vocalPresets) $(id).addEventListener('click', () => applyTrackSounds(preset));
   $('resetSounds').addEventListener('click', () => applyTrackSounds());
   const rows = $('rows');
   rows.addEventListener('input', event => {

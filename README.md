@@ -27,7 +27,7 @@ The [standalone metronome](http://127.0.0.1:8000/metronome.html) also works with
 
 ## Rehearse with an a cappella group
 
-Use a multitrack MIDI arrangement with each vocal part on its own track. Choose **Oohs** or **Aahs** at the top of the mixer to switch the melodic tracks to a vocal sound. **Reset sounds** restores the MIDI instruments and keeps your volume, mute and solo settings. Solo your part to learn it, bring the other parts back in to hear the harmony, then mute your part and sing it against the rest of the arrangement. For sectionals, solo the parts you’re rehearsing together and loop tricky entries or harmonies.
+Use a multitrack MIDI arrangement with each vocal part on its own track. Choose **Oohs** or **Aahs** at the top of the mixer to switch the melodic tracks to a vocal sound. **By part** mixes Oohs for upper voices with Aahs for tenor and bass, using each track’s pitch range when its name doesn’t identify the part. **Reset sounds** restores the MIDI instruments and keeps your volume, mute and solo settings. Solo your part to learn it, bring the other parts back in to hear the harmony, then mute your part and sing it against the rest of the arrangement. For sectionals, solo the parts you’re rehearsing together and loop tricky entries or harmonies.
 
 ## Use the practice piano
 
