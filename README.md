@@ -1,6 +1,6 @@
 # midi-mixer
 
-A browser-based rehearsal studio for singers learning parts from MIDI files. Follow the score, bring your part forward in the mix and loop tricky passages at a comfortable tempo. Three songs are included so you can try it before importing your own.
+A browser-based MIDI rehearsal studio for singers and a cappella groups. Follow the score, bring your part forward in the mix and loop tricky passages at a comfortable tempo. Three songs are included so you can try it before importing your own.
 
 ## Run locally
 
@@ -24,6 +24,10 @@ Open [midi-mixer](http://127.0.0.1:8000). The Astro dev server refreshes open pa
 Open **Tuning fork** for a steady reference pitch. It defaults to A4 at 440 Hz.
 
 The [standalone metronome](http://127.0.0.1:8000/metronome.html) also works without loading a song.
+
+## Rehearse with an a cappella group
+
+Use a multitrack MIDI arrangement with each vocal part on its own track. Choose **Oohs** or **Aahs** at the top of the mixer to switch the melodic tracks to a vocal sound. **Reset sounds** restores the MIDI instruments and keeps your volume, mute and solo settings. Solo your part to learn it, bring the other parts back in to hear the harmony, then mute your part and sing it against the rest of the arrangement. For sectionals, solo the parts you’re rehearsing together and loop tricky entries or harmonies.
 
 ## Use the practice piano
 
