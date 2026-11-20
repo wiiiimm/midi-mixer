@@ -71,6 +71,13 @@ async function deleteFile(id: string): Promise<void> {
   if (db) await run(db, SCORES, 'readwrite', s => s.delete(id));
 }
 
+/** Same wording as a failed import: the songs stay in the playlist until reload. */
+function noteSessionOnly(pending: readonly StoredFile[]): void {
+  const note = pending.map(file => file.name + ' is available for this session only.').join(' ');
+  const current = $('status').textContent?.trim();
+  $('status').textContent = current ? current + ' ' + note : note;
+}
+
 /** Raw MIDI behind each song in the playlist, so a removal can be undone. */
 const files = new Map<string, StoredFile>();
 
@@ -183,7 +190,10 @@ function removeSong(song: Song) {
   }
   refreshLibrary();
   notify('Removed “' + song.title + '”', 'Undo', () => {
-    if (studio.songs.includes(song)) return;
+    // Restore and re-import build a new Song with the same id, so object identity
+    // would insert a second row that shares one IndexedDB record.
+    const present = song.id ? studio.songs.some(s => s.id === song.id) : studio.songs.includes(song);
+    if (present) return;
     studio.songs.splice(Math.min(index, studio.songs.length), 0, song);
     if (file) saveFile(file);
     if (wasCurrent || !studio.song) selectSong(song);
@@ -252,12 +262,18 @@ export async function openLibrary(): Promise<void> {
   const db = await database;
   let stored: StoredFile[] = [];
   if (db) {
+    const unsaved: StoredFile[] = [];
     if (!await run<unknown>(db, PREFS, 'readonly', s => s.get(SEEDED))) {
       const samples = await fetchBundled();
       const saved = await Promise.all(samples.map(saveFile));
+      unsaved.push(...samples.filter((_, i) => !saved[i]));
       if (samples.length === bundledSongs.length && saved.every(Boolean)) await run(db, PREFS, 'readwrite', s => s.put(true, SEEDED));
+      if (unsaved.length) noteSessionOnly(unsaved);
     }
     stored = (await run<StoredFile[]>(db, SCORES, 'readonly', s => s.getAll())) ?? [];
+    for (const file of unsaved) {
+      if (!stored.some(saved => saved.id === file.id)) stored.push(file);
+    }
   } else {
     stored = await fetchBundled();
   }
