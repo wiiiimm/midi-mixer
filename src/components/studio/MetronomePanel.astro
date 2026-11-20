@@ -1,0 +1,5 @@
+---
+// Floating metronome window; the metronome page is embedded in an iframe when opened.
+import MetronomeIcon from '../MetronomeIcon.astro';
+---
+<dialog id="metroPanel" class="floating" aria-labelledby="metroTitle"><div id="metroHandle" class="float-handle"><strong id="metroTitle"><MetronomeIcon /> Metronome</strong><button id="closeMetro" class="float-close" aria-label="Close metronome">×</button></div><div id="metroBody"></div></dialog>

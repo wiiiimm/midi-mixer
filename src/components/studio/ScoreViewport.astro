@@ -1,0 +1,6 @@
+---
+// Engraved score (Verovio) with a lightweight SVG fallback.
+// SVG elements have no typed `hidden` attribute, but the fallback score starts hidden.
+const startHidden: Record<string, unknown> = {hidden: true};
+---
+    <div id="scorewrap"><h2 id="engravedTitle" hidden></h2><div id="scoreViewport" tabindex="0" role="region" aria-label="Scrollable MIDI score" hidden><div id="engravedScore"></div></div><svg id="score" {...startHidden} aria-label="Score. Click a position to start there."></svg></div>

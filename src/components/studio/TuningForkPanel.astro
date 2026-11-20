@@ -1,0 +1,16 @@
+---
+// Floating tuning-fork window with a one-octave note picker.
+import TuningForkIcon from '../TuningForkIcon.astro';
+---
+<dialog id="tuningFork" class="floating" aria-labelledby="tuningTitle">
+  <div class="float-handle"><strong id="tuningTitle"><TuningForkIcon /> Tuning fork</strong><button class="float-close" aria-label="Close tuning fork">×</button></div>
+  <div class="float-body tuner">
+    <div class="tuner-readout" aria-live="polite"><strong id="tuningNote">A4</strong><output id="tuningFrequency" for="tuningPitch"></output></div>
+    <div class="tuner-keys" id="tuningKeys" role="group" aria-label="Choose a note"></div>
+    <div class="tuner-octave"><button id="tuningOctDown" type="button" aria-label="Octave down">−</button><span>Octave <b id="tuningOctave">4</b></span><button id="tuningOctUp" type="button" aria-label="Octave up">+</button></div>
+    <button id="tuningPlay" type="button">Play tone</button>
+    <select id="tuningPitch" hidden aria-hidden="true" tabindex="-1"></select>
+    <p class="tuner-hint">Tap a key to hear it · ← → semitone · ↑ ↓ octave</p>
+    <p id="tuningError" role="status"></p>
+  </div>
+</dialog>

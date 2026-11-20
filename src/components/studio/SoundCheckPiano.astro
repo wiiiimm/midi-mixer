@@ -1,0 +1,4 @@
+---
+// Scrollable sound-check piano. Keys are built by the piano module.
+---
+  <section class="piano"><div class="panelhead"><h2>▥　Sound check piano</h2><div class="octaves"><button id="lowerKeys" aria-label="Scroll one octave lower">−8ve</button><span id="keysRange" class="keys-range" aria-live="polite"></span><button id="higherKeys" aria-label="Scroll one octave higher">+8ve</button></div><button id="sustain" type="button" aria-pressed="false" title="Hold notes after release. Turn off to release them.">Sustain</button><div class="piano-sound"><button type="button" class="instrument-picker" aria-haspopup="dialog" data-instrument-select="pianoVoice">Sound: Acoustic grand piano</button><select id="pianoVoice" hidden></select></div><label class="shortcut-octave">Shortcut octave <select id="octave" aria-label="Piano starting octave"></select></label></div><div class="pianoscroll"><div id="keys" aria-label="Practice piano keys"></div></div></section>

@@ -1,36 +1,61 @@
 import createVerovio from 'verovio/wasm';
 import { VerovioToolkit } from 'verovio/esm';
+import type { Bar, KeySignature, Note, Song, StaffLabelMode, Track } from '../lib/types';
+import { DRUM_KIT } from '../midi/parse';
+
+// Turns a parsed MIDI song into MEI and engraves it with Verovio. This module (and
+// the ~8 MB Verovio build) is loaded on demand, so the rest of the app starts first.
+
+interface Fragment { start: number; end: number; dur: number; dots: number }
+interface Token extends Fragment { xml: string; note?: boolean }
+/** Notes that start and end together within one voice. */
+interface NoteEvent { start: number; end: number; notes: Map<number, Note> }
+interface NoteTiming { start: number; end: number }
+interface LayerContext {
+  start: number; end: number; beatLength: number; key: KeySignature; mode: StaffLabelMode;
+  pageStart: number; pageEnd: number; accidentalState: Map<string, string>;
+}
+
+export interface EngravedScore {
+  svg: string;
+  /** Measure element id → bar index. */
+  measures: Map<string, number>;
+  /** Note/chord element id → onset and release, in beats. */
+  timing: Map<string, NoteTiming>;
+}
+export type Engraver = (song: Song, mode: StaffLabelMode) => EngravedScore;
 
 const ticksPerBeat = 16;
-const tick = quarter => Math.round(quarter * ticksPerBeat);
-const escape = value => String(value).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replace(/[<>&"']/g, char =>
-  ({'<':'&lt;', '>':'&gt;', '&':'&amp;', '"':'&quot;', "'":'&apos;'})[char]
+const tick = (quarter: number): number => Math.round(quarter * ticksPerBeat);
+const escape = (value: unknown): string => String(value).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replace(/[<>&"']/g, char =>
+  ({'<':'&lt;', '>':'&gt;', '&':'&amp;', '"':'&quot;', "'":'&apos;'} as Record<string, string>)[char]
 );
-const durations = [[64,1],[32,2],[16,4],[8,8],[4,16],[2,32],[1,64]]
-  .flatMap(([length, dur]) => length >= 2 ? [[length * 1.5, dur, 1], [length, dur, 0]] : [[length, dur, 0]])
+/** [length in ticks, MEI @dur, dots], longest first. */
+const durations: [number, number, number][] = ([[64,1],[32,2],[16,4],[8,8],[4,16],[2,32],[1,64]] as const)
+  .flatMap(([length, dur]): [number, number, number][] => length >= 2 ? [[length * 1.5, dur, 1], [length, dur, 0]] : [[length, dur, 0]])
   .sort(([a], [b]) => b - a);
 const sharp = ['c','cs','d','ds','e','f','fs','g','gs','a','as','b'];
 const flat = ['c','df','d','ef','e','f','gf','g','af','a','bf','b'];
 const solfa = ['Do','Di','Re','Ri','Mi','Fa','Fi','Sol','Si','La','Li','Ti'];
 
-function spell(pitch, sf) {
+function spell(pitch: number, sf: number) {
   const [letter, accidental = 'n'] = (sf < 0 ? flat : sharp)[pitch % 12];
   return { letter, accidental, octave: Math.floor(pitch / 12) - 1 };
 }
 
-function splitDuration(start, end, measureStart, beatLength) {
-  const fragments = [];
+function splitDuration(start: number, end: number, measureStart: number, beatLength: number): Fragment[] {
+  const fragments: Fragment[] = [];
   while (start < end) {
     const offset = (start - measureStart) % beatLength;
     const limit = offset ? Math.min(end - start, beatLength - offset) : end - start;
-    const [length, dur, dots] = durations.find(([length]) => length <= limit);
+    const [length, dur, dots] = durations.find(([length]) => length <= limit)!;
     fragments.push({ start, end: start + length, dur, dots });
     start += length;
   }
   return fragments;
 }
 
-function shortenedDuration(note, ppq) {
+function shortenedDuration(note: Note, ppq: number): number {
   // Some notation exports shorten notes to 95% of the written value, minus one MIDI tick.
   const raw = note.len * ppq;
   const grid = ppq / 8;
@@ -38,7 +63,7 @@ function shortenedDuration(note, ppq) {
   return written > 0 && Math.abs(written * .95 - 1 - raw) <= 1 ? tick(written / ppq) : 0;
 }
 
-function usesShortenedDurations(tracks, ppq) {
+function usesShortenedDurations(tracks: Track[], ppq: number): boolean {
   if (!ppq) return false;
   let checked = 0, matches = 0;
   for (const track of tracks) {
@@ -51,8 +76,8 @@ function usesShortenedDurations(tracks, ppq) {
   return checked >= 8 && matches / checked >= .85;
 }
 
-function makeVoices(track, shortenedPpq) {
-  const groups = new Map();
+function makeVoices(track: Track, shortenedPpq: number): NoteEvent[][] {
+  const groups = new Map<string, NoteEvent>();
   for (const note of track.notes) {
     const start = tick(note.q);
     const raw = Math.max(1, note.len * ticksPerBeat);
@@ -63,18 +88,18 @@ function makeVoices(track, shortenedPpq) {
     const length = restored || (Math.abs(nearest - raw) <= raw * .12 ? nearest : Math.max(1, Math.round(raw)));
     const key = start + ':' + length;
     if (!groups.has(key)) groups.set(key, {start, end:start + length, notes:new Map()});
-    groups.get(key).notes.set(note.p, note);
+    groups.get(key)!.notes.set(note.p, note);
   }
-  const voices = [];
+  const voices: NoteEvent[][] = [];
   for (const group of [...groups.values()].sort((a,b) => a.start-b.start || b.end-a.end)) {
-    const voice = voices.find(events => events.at(-1).end <= group.start);
+    const voice = voices.find(events => events[events.length - 1].end <= group.start);
     if (voice) voice.push(group);
     else voices.push([group]);
   }
   return voices;
 }
 
-function firstEndingAfter(voice, position) {
+function firstEndingAfter(voice: NoteEvent[], position: number): number {
   let low=0, high=voice.length;
   while (low<high) {
     const middle=(low+high)>>1;
@@ -84,11 +109,12 @@ function firstEndingAfter(voice, position) {
   return low;
 }
 
-function writeLayer(events, first, context, staff, layer, labels, timing) {
+function writeLayer(events: NoteEvent[], first: number, context: LayerContext, staff: number, layer: number,
+  labels: string[], timing: Map<string, NoteTiming>): string {
   const { start, end, beatLength, key, mode, pageStart, pageEnd, accidentalState } = context;
-  const content = [];
+  const content: Token[] = [];
   let position = start;
-  function rests(to) {
+  function rests(to: number) {
     if (to <= position) return;
     for (const fragment of splitDuration(position, to, start, beatLength)) {
       content.push({ ...fragment, xml: '<rest dur="' + fragment.dur + '"' +
@@ -101,7 +127,7 @@ function writeLayer(events, first, context, staff, layer, labels, timing) {
     if (event.end <= start) continue;
     const from = Math.max(start,event.start), to = Math.min(end,event.end);
     rests(from);
-    const lyrics=new Map();
+    const lyrics=new Map<number, string>();
     for(const note of event.notes.values()){
       if(note.lyric)lyrics.set(event.start,note.lyric);
       for(const cue of note.lyricCues??[])lyrics.set(tick(cue.q),cue.text);
@@ -141,7 +167,7 @@ function writeLayer(events, first, context, staff, layer, labels, timing) {
         const text = pitches.map(pitch => {
           const {letter, accidental} = spell(pitch,key.sf);
           return mode === 'solfa' ? solfa[(pitch-key.tonic+12)%12] :
-            letter.toUpperCase() + ({s:'♯',f:'♭'}[accidental] ?? '');
+            letter.toUpperCase() + (({s:'♯',f:'♭'} as Record<string, string>)[accidental] ?? '');
         }).join(' · ');
         labels.push('<dir type="staff-label" staff="' + staff + '" place="below" startid="#' +
           id + '"><rend fontsize="small">' + escape(text) + '</rend></dir>');
@@ -167,27 +193,27 @@ function writeLayer(events, first, context, staff, layer, labels, timing) {
   return '<layer n="' + layer + '">' + xml + '</layer>';
 }
 
-const signature = (bar, key) => '<scoreDef meter.count="' + bar.n + '" meter.unit="' + bar.d +
+const signature = (bar: Bar, key: KeySignature): string => '<scoreDef meter.count="' + bar.n + '" meter.unit="' + bar.d +
   '" key.sig="' + (key.sf ? Math.abs(key.sf) + (key.sf > 0 ? 's' : 'f') : '0') + '"';
 
-function staffDefinition(track,index) {
+function staffDefinition(track: Track, index: number): string {
   const pitches = track.notes.map(note => note.p).sort((a,b) => a-b);
   const median = pitches[Math.floor(pitches.length/2)];
-  const percussion = track.inst === 10;
+  const percussion = track.inst === DRUM_KIT;
   const clef = percussion ? 'clef.shape="perc" clef.line="3"' :
     median < 58 ? 'clef.shape="F" clef.line="4"' : 'clef.shape="G" clef.line="2"';
   return '<staffDef n="' + (index+1) + '" lines="5" ' + clef + '><label>' + escape(track.name) +
     '</label><labelAbbr>' + escape(track.name) + '</labelAbbr></staffDef>';
 }
 
-const scores = new WeakMap();
-function encodeScore(song, mode) {
+const scores = new WeakMap<Song, NoteEvent[][][]>();
+function encodeScore(song: Song, mode: StaffLabelMode) {
   if (!scores.has(song)) {
     const shortenedPpq = usesShortenedDurations(song.tracks,song.ppq) ? song.ppq : 0;
     scores.set(song,song.tracks.map(track=>makeVoices(track,shortenedPpq)));
   }
-  const voiceTracks = scores.get(song);
-  const measures = new Map(), timing = new Map();
+  const voiceTracks = scores.get(song)!;
+  const measures = new Map<string, number>(), timing = new Map<string, NoteTiming>();
   const last = song.bars.length-1;
   const pageStart = 0, pageEnd = tick(song.bars[last].q);
   const initial = signature(song.bars[0],song.keyAt(0)) +
@@ -207,14 +233,14 @@ function encodeScore(song, mode) {
     }
     const id = 'midi-bar-' + barIndex;
     measures.set(id,barIndex);
-    const controls = [];
+    const controls: string[] = [];
     const number = barIndex+1;
     if (number === 1 || number % 4 === 0) {
       controls.push('<dir xml:id="bar-number-' + number +
         '" staff="1" place="above" tstamp="1"><rend fontsize="small" fontstyle="normal">' +
         number + '</rend></dir>');
     }
-    const change = song.tempos.findLast(tempo => tempo.q <= bar.q);
+    const change = song.tempos.findLast(tempo => tempo.q <= bar.q)!;
     if (barIndex === 0 || change.q === bar.q) {
       const bpm = Math.round(60000000/change.us);
       controls.push('<tempo staff="1" tstamp="1" mm="' + bpm + '" mm.unit="4" midi.bpm="' + bpm +
@@ -245,30 +271,24 @@ function encodeScore(song, mode) {
   return {mei,measures,timing};
 }
 
-async function initialise() {
+/** Loads Verovio and returns a function that engraves a song. */
+export async function createEngraver(): Promise<Engraver> {
   const toolkit = new VerovioToolkit(await createVerovio());
   toolkit.setOptions({
-    inputFrom:'mei', scale:38, breaks:'none', adjustPageWidth:true,
-    adjustPageHeight:true, noJustification:true,
-    header:'none', footer:'none', spacingStaff:11, spacingSystem:16, svgViewBox:true,
-    minLastJustification:0, pageMarginTop:30, pageMarginBottom:35, pageMarginLeft:75, pageMarginRight:75,
+    inputFrom: 'mei', scale: 38, breaks: 'none', adjustPageWidth: true,
+    adjustPageHeight: true, noJustification: true,
+    header: 'none', footer: 'none', spacingStaff: 11, spacingSystem: 16, svgViewBox: true,
+    minLastJustification: 0, pageMarginTop: 30, pageMarginBottom: 35, pageMarginLeft: 75, pageMarginRight: 75,
   });
   // Wider bars overall, and wider still when note/sol-fa labels sit under the notes.
   const spacing = {
-    plain: {spacingLinear:.4, spacingNonLinear:.65, measureMinWidth:22},
-    labelled: {spacingLinear:.48, spacingNonLinear:.67, measureMinWidth:25},
+    plain: {spacingLinear: .4, spacingNonLinear: .65, measureMinWidth: 22},
+    labelled: {spacingLinear: .48, spacingNonLinear: .67, measureMinWidth: 25},
   };
-  window.engraveMidiScoreSpacing = spacing;
-  window.engraveMidiScore = (song, mode) => {
+  return (song, mode) => {
     toolkit.setOptions(spacing[mode === 'none' ? 'plain' : 'labelled']);
-    const {mei,measures,timing} = encodeScore(song,mode);
+    const {mei, measures, timing} = encodeScore(song, mode);
     if (!toolkit.loadData(mei)) throw new Error('Could not engrave this MIDI score.');
-    return { svg:toolkit.renderToSVG(1), measures, timing };
+    return {svg: toolkit.renderToSVG(1), measures, timing};
   };
-  window.dispatchEvent(new Event('score-engraver-ready'));
 }
-
-initialise().catch(error => {
-  console.error(error);
-  window.dispatchEvent(new Event('score-engraver-unavailable'));
-});
