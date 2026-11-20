@@ -124,8 +124,10 @@ async function networkFirst(request) {
       // Finish the write before responding, or the worker can stop mid-write.
       try { await cache.put(request, response.clone()); }
       catch (error) { console.warn('Could not update the shell cache', error); }
+      return response;
     }
-    return response;
+    // An HTTP error (e.g. a 503 from the server) still resolves, so prefer the cached copy.
+    return (await cache.match(request, {ignoreSearch: true})) || response;
   } catch {
     const hit = await cache.match(request, {ignoreSearch: true});
     if (hit) return hit;
