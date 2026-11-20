@@ -1,6 +1,7 @@
 {
   "name": "midi-mixer",
   "private": true,
+  "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "dev": "astro dev",
