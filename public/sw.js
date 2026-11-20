@@ -17,36 +17,45 @@ const CORE = [
 
 // Hashed bundles are discovered from the built pages, then followed through their
 // static and dynamic imports (the score engraver is a separately loaded chunk).
+// Any failed fetch rejects, so an install never completes with chunks it didn't find.
+async function fetchText(url) {
+  const response = await fetch(url, {cache: 'no-cache'});
+  if (!response.ok) throw new Error('HTTP ' + response.status + ' for ' + url);
+  return response.text();
+}
+
 async function bundleUrls() {
   const urls = new Set();
   for (const page of ['index.html', 'metronome.html']) {
-    try {
-      const html = await (await fetch(new URL(page, self.registration.scope), {cache: 'no-cache'})).text();
-      for (const [, src] of html.matchAll(/(?:src|href)="([^"]*_astro\/[^"]+)"/g)) urls.add(new URL(src, self.registration.scope).href);
-    } catch {}
+    const html = await fetchText(new URL(page, self.registration.scope));
+    for (const [, src] of html.matchAll(/(?:src|href)="([^"]*_astro\/[^"]+)"/g)) urls.add(new URL(src, self.registration.scope).href);
   }
   const queue = [...urls];
   while (queue.length) {
     const url = queue.pop();
     if (!url.endsWith('.js')) continue;
-    try {
-      const code = await (await fetch(url, {cache: 'no-cache'})).text();
-      for (const [, dep] of code.matchAll(/(?:from|import)\s*\(?\s*["'`](\.{1,2}\/[^"'`]+\.js)["'`]/g)) {
-        const resolved = new URL(dep, url).href;
-        if (!urls.has(resolved)) { urls.add(resolved); queue.push(resolved); }
-      }
-    } catch {}
+    const code = await fetchText(url);
+    for (const [, dep] of code.matchAll(/(?:from|import)\s*\(?\s*["'`](\.{1,2}\/[^"'`]+\.js)["'`]/g)) {
+      const resolved = new URL(dep, url).href;
+      if (!urls.has(resolved)) { urls.add(resolved); queue.push(resolved); }
+    }
   }
   return [...urls];
 }
 
 async function refreshShell() {
   const cache = await caches.open(SHELL);
-  const urls = [...CORE, ...await bundleUrls()];
-  await Promise.allSettled(urls.map(async url => {
+  const bundles = await bundleUrls();
+  const store = async url => {
     const response = await fetch(url, {cache: 'no-cache'});
-    if (response.ok) await cache.put(url, response);
-  }));
+    if (!response.ok) throw new Error('HTTP ' + response.status + ' for ' + url);
+    await cache.put(url, response);
+  };
+  // The app can't start offline without every chunk, so those are required.
+  await Promise.all([
+    Promise.all(bundles.map(store)),
+    Promise.allSettled(CORE.map(store)),
+  ]);
 }
 
 self.addEventListener('install', event => {

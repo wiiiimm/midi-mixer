@@ -197,6 +197,9 @@ export function initPiano(): void {
       if (letter) buttons[i] = key;
       keyboard.append(key);
     }
+    // A rebuild jumps to the new octave, so drop any glide target from earlier clicks.
+    clearTimeout(goalTimer);
+    goal = null;
     viewport.scrollLeft = keysByPitch.get(start)!.offsetLeft;
   }
 

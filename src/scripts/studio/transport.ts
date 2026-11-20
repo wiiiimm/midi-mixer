@@ -117,7 +117,7 @@ export function initTransport(): void {
       return;
     }
     try {
-      await startPlayback();
+      if (!await startPlayback()) return;
       $('play').textContent = PAUSE;
       playBrandScale();
     } catch (error) {

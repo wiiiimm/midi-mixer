@@ -77,18 +77,27 @@ export function initInstrumentPicker(): void {
       rows.push(button);
     }
     results.replaceChildren(...rows);
-    $('instrumentEmpty').hidden = matches.length > 0;
+    const empty = $('instrumentEmpty');
+    empty.textContent = 'No matching instruments.';
+    empty.hidden = matches.length > 0;
   }
 
   function choose(button: HTMLElement | null) {
     if (!button || !source || !trigger) return;
+    if (!source.isConnected || !trigger.isConnected) {
+      // The mixer was rebuilt (e.g. an import finished) while the picker was open.
+      results.replaceChildren();
+      const notice = $('instrumentEmpty');
+      notice.textContent = 'This track list changed. Close and reopen the instrument picker.';
+      notice.hidden = false;
+      return;
+    }
     source.value = button.dataset.value!;
     const name = source.selectedOptions[0].text;
     if (source.id === 'pianoVoice') trigger.textContent = 'Sound: ' + name;
     else {
       trigger.textContent = name;
-      const label = trigger.getAttribute('aria-label')!.split(': ')[0];
-      trigger.setAttribute('aria-label', label + ': ' + name);
+      trigger.setAttribute('aria-label', trigger.dataset.track + ' instrument: ' + name);
     }
     source.dispatchEvent(new Event('input', {bubbles: true}));
     dialog.close();

@@ -170,11 +170,12 @@ async function ensureSounds() {
 }
 
 /** Starts playback from the current position (or the cue, at the end of the song). */
-export async function startPlayback(): Promise<void> {
+export async function startPlayback(): Promise<boolean> {
   const song = studio.song;
-  if (!song) return;
+  if (!song) return false;
   const audio = await enableAudio();
   await ensureSounds();
+  if (studio.song !== song || studio.playing) return false; // another song was picked, or play was pressed again
   if (!buses.length) {
     buses = studio.mix.map(() => {
       const bus = audio.ctx.createGain();
@@ -190,6 +191,7 @@ export async function startPlayback(): Promise<void> {
   }
   studio.playing = true;
   restart();
+  return true;
 }
 
 export function pausePlayback(): void {

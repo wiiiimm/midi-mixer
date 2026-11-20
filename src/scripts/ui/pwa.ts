@@ -27,7 +27,7 @@ export function initPwa(): void {
   window.addEventListener('offline', () => notify('You’re offline. Saved songs and sounds still work.'));
   window.addEventListener('online', () => {
     notify('Back online.');
-    for (const program of failed) loadInstrument(program);
+    for (const program of failed) loadInstrument(program, true);
   });
 
   const enabled = document.querySelector<HTMLMetaElement>('meta[name="service-worker"]')?.content === 'on';
@@ -79,7 +79,7 @@ export function initPwa(): void {
   });
   navigator.serviceWorker.addEventListener('message', event => {
     if (event.data?.type !== 'samples-synced') return;
-    for (const program of failed) loadInstrument(program);
+    for (const program of failed) loadInstrument(program, true);
     if (!event.data.remaining) notify('Instrument sounds downloaded for offline use.');
   });
 }

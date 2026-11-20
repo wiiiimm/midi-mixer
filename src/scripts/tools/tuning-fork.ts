@@ -94,6 +94,8 @@ export function initTuningFork(): void {
     const step = ({ArrowLeft: -1, ArrowRight: 1, ArrowDown: -12, ArrowUp: 12} as Record<string, number>)[e.key];
     if (!step) return;
     e.preventDefault();
+    // Octave steps that would leave the range are ignored rather than clamped to a smaller interval.
+    if (Math.abs(step) === 12 && (current() + step < LOWEST || current() + step > HIGHEST)) return;
     setPitch(current() + step);
     keys.querySelector<HTMLElement>('[aria-pressed=true]')?.focus();
   });
