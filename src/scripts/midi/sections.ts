@@ -48,6 +48,8 @@ export function songSections(song: Song): Section[] {
     .filter(marker => marker.text.trim() && !DIRECTION.test(marker.text.trim()) && marker.q < song.end)
     .sort((a, b) => a.q - b.q)
     .filter((marker, i, all) => i === 0 || marker.q > all[i - 1].q); // one section per position
+  // If the markers leave the opening unlabelled, give it a "Start" section of its own.
+  if (marks.length && marks[0].q > 1e-6) marks.unshift({q: 0, text: 'Start'});
   return marks.map((marker, i) => {
     const end = marks[i + 1]?.q ?? song.end;
     return {
