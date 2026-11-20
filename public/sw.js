@@ -1,7 +1,7 @@
 'use strict';
 // midi-mixer service worker: offline app shell, cached instrument samples and
 // background sync for sounds that could not be downloaded while offline.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL = 'shell-' + VERSION;
 const SAMPLES = 'gm-samples';           // kept across versions; samples never change
 const META = 'meta';                    // background-sync queue
@@ -83,7 +83,9 @@ self.addEventListener('fetch', event => {
   if (url.href.startsWith(SAMPLE_HOST)) {
     event.respondWith(cacheFirst(request, SAMPLES));
   } else if (url.origin === location.origin) {
-    if (request.mode === 'navigate') event.respondWith(networkFirst(request));
+    // Stylesheets aren't content-hashed, so a cached copy can be older than the page
+    // that links it. Fetch them with the page, and use the cache only when offline.
+    if (request.mode === 'navigate' || request.destination === 'style') event.respondWith(networkFirst(request));
     else if (url.pathname.includes('/_astro/')) event.respondWith(cacheFirst(request, SHELL));
     else event.respondWith(staleWhileRevalidate(request));
   }
