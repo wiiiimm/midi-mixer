@@ -142,6 +142,14 @@ aside{display:flex;flex-direction:column;overflow:hidden}
 
 .lanes{min-height:100%;grid-template-columns:clamp(184px,15vw,224px) minmax(0,1fr)}
 .strip{border-right:1px solid var(--line)}
+.vocal-tools{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:4px;padding:6px 8px;border-bottom:1px solid var(--line)}
+#vocalsByPart{grid-column:1 / -1}
+.vocal-tools span{font-size:12px;color:var(--muted)}
+.vocal-tools button{font-size:11px;padding:4px 5px}
+@media(max-width:720px){
+  .mix-panel .vocal-tools{margin-bottom:10px;padding:10px;gap:8px;border:0;border-radius:12px;background:#1c1c1e}
+  .mix-panel .vocal-tools button{font-size:13px;padding:8px}
+}
 .mix-tools{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:6px 8px;border-bottom:1px solid var(--line);background:#1c1c1e}
 .mix-tools label{display:flex;align-items:center;gap:5px;font-size:12px;color:var(--muted);white-space:nowrap}
 .mix-tools button{font-size:11px;padding:4px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
