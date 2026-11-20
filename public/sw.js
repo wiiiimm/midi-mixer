@@ -1,19 +1,22 @@
 'use strict';
 // midi-mixer service worker: offline app shell, cached instrument samples and
 // background sync for sounds that could not be downloaded while offline.
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL = 'shell-' + VERSION;
 const SAMPLES = 'gm-samples';           // kept across versions; samples never change
 const META = 'meta';                    // background-sync queue
 const SAMPLE_HOST = 'https://gleitz.github.io/midi-js-soundfonts/';
 const QUEUE_URL = new URL('__sync-queue', self.registration.scope).href;
 
+const toUrl = path => new URL(encodeURI(path), self.registration.scope).href;
+// Stylesheets aren't content-hashed and the old shell cache is deleted on activate,
+// so an install must not complete without them or offline loads lose their styles.
+const STYLES = ['style.css', 'studio.css'].map(toUrl);
 const CORE = [
   './', 'index.html', 'metronome.html', 'manifest.webmanifest',
-  'style.css', 'studio.css',
   'favicon.svg', 'apple-touch-icon.png', 'icon-192.png', 'icon-512.png',
   'here-from-score.mid', '載我走.mid', '心的小島.mid',
-].map(path => new URL(encodeURI(path), self.registration.scope).href);
+].map(toUrl);
 
 // Hashed bundles are discovered from the built pages, then followed through their
 // static and dynamic imports (the score engraver is a separately loaded chunk).
@@ -51,9 +54,9 @@ async function refreshShell() {
     if (!response.ok) throw new Error('HTTP ' + response.status + ' for ' + url);
     await cache.put(url, response);
   };
-  // The app can't start offline without every chunk, so those are required.
+  // The app can't start offline without every chunk and stylesheet, so those are required.
   await Promise.all([
-    Promise.all(bundles.map(store)),
+    Promise.all([...bundles, ...STYLES].map(store)),
     Promise.allSettled(CORE.map(store)),
   ]);
 }
@@ -83,7 +86,9 @@ self.addEventListener('fetch', event => {
   if (url.href.startsWith(SAMPLE_HOST)) {
     event.respondWith(cacheFirst(request, SAMPLES));
   } else if (url.origin === location.origin) {
-    if (request.mode === 'navigate') event.respondWith(networkFirst(request));
+    // Stylesheets aren't content-hashed, so a cached copy can be older than the page
+    // that links it. Fetch them with the page, and use the cache only when offline.
+    if (request.mode === 'navigate' || request.destination === 'style') event.respondWith(networkFirst(request));
     else if (url.pathname.includes('/_astro/')) event.respondWith(cacheFirst(request, SHELL));
     else event.respondWith(staleWhileRevalidate(request));
   }
@@ -115,12 +120,23 @@ async function networkFirst(request) {
       fetch(request),
       new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
     ]);
-    if (response.ok) cache.put(request, response.clone());
-    return response;
+    if (response.ok) {
+      // Finish the write before responding, or the worker can stop mid-write.
+      try { await cache.put(request, response.clone()); }
+      catch (error) { console.warn('Could not update the shell cache', error); }
+      return response;
+    }
+    // An HTTP error (e.g. a 503 from the server) still resolves, so prefer the cached copy.
+    return (await cache.match(request, {ignoreSearch: true})) || response;
   } catch {
-    return (await cache.match(request, {ignoreSearch: true})) ||
-      (await cache.match(new URL('index.html', self.registration.scope).href)) ||
-      new Response('Offline', {status: 503});
+    const hit = await cache.match(request, {ignoreSearch: true});
+    if (hit) return hit;
+    // Only pages fall back to the app shell; a stylesheet must never receive HTML.
+    if (request.mode === 'navigate') {
+      const shell = await cache.match(new URL('index.html', self.registration.scope).href);
+      if (shell) return shell;
+    }
+    return new Response('Offline', {status: 503});
   }
 }
 
