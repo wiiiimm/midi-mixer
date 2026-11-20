@@ -23,6 +23,8 @@ Open [midi-mixer](http://127.0.0.1:8000). The Astro dev server refreshes open pa
 
 Open **Tuning fork** for a steady reference pitch. It defaults to A4 at 440 Hz.
 
+Open **Pitch** and tap **Start listening** to check your own pitch through the microphone. It shows the nearest note, how many cents sharp or flat you are (within 10 cents counts as in tune), and a trail of the last five seconds. It hears one voice or instrument at a time, so wear headphones if a song is playing. The microphone is only used in your browser and is released when you close the window.
+
 The [standalone metronome](http://127.0.0.1:8000/metronome.html) also works without loading a song.
 
 ## Rehearse with an a cappella group
@@ -70,7 +72,7 @@ Astro writes the static site to `dist/`.
 | `src/scripts/audio/` | Audio context and built-in synth, General MIDI samples and the metronome click. |
 | `src/scripts/midi/` | MIDI file parsing and the bundled song list. |
 | `src/scripts/score/` | Verovio engraving (loaded on demand as its own chunk) and fallback clef shapes. |
-| `src/scripts/tools/` | Practice piano, tuning fork and metronome. |
+| `src/scripts/tools/` | Practice piano, tuning fork, pitch detector and metronome. |
 | `src/scripts/ui/` | Loading screen, responsive drawer, floating windows, instrument picker and offline support. |
 | `public/` | Styles, bundled MIDI files, icons, the web app manifest and the service worker. |
 
