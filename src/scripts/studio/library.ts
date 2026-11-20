@@ -274,6 +274,8 @@ export function initLibrary(): void {
   const filter = $<HTMLInputElement>('filter');
   filter.addEventListener('input', filterSongs);
   filter.addEventListener('keydown', e => {
+    // Enter confirms an IME candidate; blurring then would drop the query.
+    if (e.isComposing) return;
     if (e.key === 'Enter' || (e.key === 'Escape' && !filter.value)) filter.blur();
   });
   $('restoreSamples').addEventListener('click', () => whileBusy('Restoring sample songs…', restoreSamples));
