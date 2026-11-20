@@ -1,4 +1,5 @@
-import { $, formatTime, typingTarget } from '../lib/dom';
+import { $, formatTime } from '../lib/dom';
+import { elementConsumesSpace, shortcutsBlocked } from '../lib/shortcuts';
 import type { Song } from '../lib/types';
 import { playBrandScale } from '../ui/brand';
 import { loopRange, onPlaybackFinished, pausePlayback, restart, setClickTrack, startPlayback } from './playback';
@@ -159,7 +160,10 @@ export function initTransport(): void {
     select.value = option.value;
     setRate(Number(option.value));
   });
-  input('tempoBpm').addEventListener('keydown', e => { if (e.key === 'Enter') input('tempoBpm').blur(); });
+  // Pressing Enter commits numeric fields and returns focus so shortcuts resume.
+  for (const id of ['tempoBpm', 'a', 'b', 'startBar'] as const) {
+    input(id).addEventListener('keydown', e => { if (e.key === 'Enter') input(id).blur(); });
+  }
 
   $('loop').addEventListener('click', () => {
     studio.looping = !studio.looping;
@@ -205,13 +209,14 @@ export function initTransport(): void {
 
   // Space: play/pause · R: back to cue · Shift+L: loop.
   document.addEventListener('keydown', event => {
-    if (event.defaultPrevented || event.repeat || event.isComposing || event.ctrlKey ||
-        event.metaKey || event.altKey || typingTarget(event)) return;
-    const action = event.code === 'Space' && event.target === document.body ? 'play' :
+    if (event.defaultPrevented || event.isComposing || event.ctrlKey ||
+        event.metaKey || event.altKey || shortcutsBlocked(event)) return;
+    const action = event.code === 'Space' && !event.shiftKey && !elementConsumesSpace(event) ? 'play' :
       event.code === 'KeyR' && !event.shiftKey ? 'home' :
       event.code === 'KeyL' && event.shiftKey ? 'loop' : '';
     if (!action) return;
     event.preventDefault();
+    if (event.repeat) return;
     $(action).click();
   });
 

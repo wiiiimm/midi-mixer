@@ -271,7 +271,13 @@ export function initLibrary(): void {
     if (target.closest('.song-remove')) removeSong(song);
     else if (target.closest('.song') && song !== studio.song) whileBusy('Loading ' + song.title + '…', () => selectSong(song));
   });
-  $('filter').addEventListener('input', filterSongs);
+  const filter = $<HTMLInputElement>('filter');
+  filter.addEventListener('input', filterSongs);
+  filter.addEventListener('keydown', e => {
+    // Enter confirms an IME candidate; blurring then would drop the query.
+    if (e.isComposing) return;
+    if (e.key === 'Enter' || (e.key === 'Escape' && !filter.value)) filter.blur();
+  });
   $('restoreSamples').addEventListener('click', () => whileBusy('Restoring sample songs…', restoreSamples));
   const upload = $<HTMLInputElement>('upload');
   $('import').addEventListener('click', () => upload.click());
