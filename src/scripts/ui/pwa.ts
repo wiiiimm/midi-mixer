@@ -1,20 +1,8 @@
 import { loadInstrument, onInstrumentLoad, sampleUrls } from '../audio/sampler';
-import { $ } from '../lib/dom';
+import { notify } from './toast';
 
 // Offline support: service worker registration, update prompt, offline notice and
 // background sync for instrument sounds that failed to download.
-
-let hideTimer: ReturnType<typeof setTimeout> | undefined;
-function notify(text: string, action?: string, onAction?: () => void, sticky = false) {
-  const toast = $('appToast'), button = $<HTMLButtonElement>('appToastAction');
-  $('appToastText').textContent = text;
-  button.hidden = !action;
-  button.textContent = action ?? '';
-  button.onclick = onAction ?? null;
-  toast.hidden = false;
-  clearTimeout(hideTimer);
-  if (!sticky) hideTimer = setTimeout(() => { toast.hidden = true; }, 5000);
-}
 
 type PeriodicSyncRegistration = ServiceWorkerRegistration & {
   periodicSync?: {register(tag: string, options: {minInterval: number}): Promise<void>};
