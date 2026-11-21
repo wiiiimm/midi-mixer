@@ -4,6 +4,9 @@ import { octaveOf, sharpNames } from '../lib/notes';
 import { decimate, detectPitch, median, midiOf, nearestNote } from '../lib/pitch';
 import { registerFloatingWindow } from '../ui/floating-windows';
 
+/** Event fired on document with the heard MIDI note (or null when no note is heard). */
+export const PITCH_HEARD = 'pitchheard';
+
 // Pitch detector: listens through the microphone and shows the nearest note, how many
 // cents sharp or flat the singer is, and a trail of the last few seconds of pitch.
 
@@ -27,6 +30,14 @@ export function initPitchDetector(): void {
   let active: Listening | undefined, generation = 0;
   let recent: number[] = [], lastHeard = 0, announced = {key: '', at: 0};
   const trail: {t: number; midi: number | null}[] = [];
+  let heardNote: number | null = null;
+
+  /** Tells the on-screen piano which note is being heard, only when it changes. */
+  function announceNote(note: number | null) {
+    if (note === heardNote) return;
+    heardNote = note;
+    document.dispatchEvent(new CustomEvent<number | null>(PITCH_HEARD, {detail: note}));
+  }
 
   function showReading(midi: number | null) {
     if (midi === null) {
@@ -35,9 +46,11 @@ export function initPitchDetector(): void {
       $('pitchVerdict').textContent = active ? 'Listening…' : 'Not listening';
       panel.dataset.tone = '';
       needle.style.left = '50%';
+      announceNote(null);
       return;
     }
     const {note, cents} = nearestNote(midi), tone = toneOf(cents), off = Math.round(Math.abs(cents));
+    announceNote(note);
     $('pitchNote').textContent = noteName(note);
     $('pitchHz').textContent = (440 * 2 ** ((midi - 69) / 12)).toFixed(1) + ' Hz';
     $('pitchVerdict').textContent = tone === 'good' ? 'In tune' : off + '¢ ' + (cents < 0 ? 'flat' : 'sharp');

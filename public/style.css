@@ -13,3 +13,6 @@
 #keys strong{font-size:13px}#keys small{font-size:11px;opacity:.78}.pianohint{margin:10px 15px 14px;font-size:13px}.piano :focus-visible{outline:2px solid #0a84ff;outline-offset:-3px}
 #keys button.sounding{background:var(--parts);color:#121212;box-shadow:inset 0 -4px #0002}
 #keys button.held{outline:3px solid #0a84ff;outline-offset:-3px}
+/* The note the pitch detector hears: yellow, apart from the blue held keys and the track colours of playback. */
+#keys button.heard{background:#ffd60a;color:#1c1400;box-shadow:inset 0 -4px #c9a400}#keys .black.heard{background:#e6bf00}
+#keys button.sounding.heard{background:var(--parts);box-shadow:inset 0 0 0 4px #ffd60a}
