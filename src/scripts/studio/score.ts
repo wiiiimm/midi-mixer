@@ -450,7 +450,7 @@ const staffLabel = (pitch: number, key: KeySignature, mode: StaffLabelMode) =>
 
 interface Stem { note: Note; x: number; y: number; down: boolean; flags: number; beat: number; length: number; endY?: number; next?: Stem; previous?: Stem }
 
-function beamGroups(notes: Note[], bar: Bar, end: number, top: number, reference: number, sf: number, xAt: (q: number) => number) {
+function beamGroups(notes: Note[], bar: Bar, end: number, top: number, reference: number, sfAt: (q: number) => number, xAt: (q: number) => number) {
   const stems = new Map<Note, Stem>();
   let group: Stem[] = [];
   function finish() {
@@ -481,7 +481,7 @@ function beamGroups(notes: Note[], bar: Bar, end: number, top: number, reference
       finish();
       continue;
     }
-    const y = noteY(note.p, top, reference, sf), down = y < top + 14;
+    const y = noteY(note.p, top, reference, sfAt(note.q)), down = y < top + 14;
     const prior = group[group.length - 1];
     if (prior && (prior.down !== down || prior.beat !== beat || Math.abs(prior.note.q + prior.length - note.q) > .015)) finish();
     group.push({note, x: xAt(note.q) + (down ? -4.2 : 4.2), y, down, flags, beat, length});
@@ -498,6 +498,8 @@ function renderFallback(song: Song) {
   let top = 52, previousStaff: number | undefined, connectors = '';
   let s = '<rect width="100%" height="32" fill="#111d30"/>';
   for (let j = 0; j < count; j++) s += '<text x="' + (scoreStart + j * w) + '" y="21" fill="#bed1df" font-size="11">' + (page + j + 1) + '</text>';
+  // Each note is spelt for the key at its onset, matching its staff label, even when the key changes mid-bar.
+  const sfAt = (q: number) => song.keyAt(q).sf;
   song.tracks.forEach((track, i) => {
     const labels = new Map<number, Map<number, string>>();
     let labelFloor = top + 28;
@@ -525,13 +527,13 @@ function renderFallback(song: Song) {
         bar.n + '<tspan x="' + (x - 5) + '" dy="14">' + bar.d + '</tspan></text>';
       s += line(x, top, x, top + 28);
       const xAt = (q: number) => x + 14 + (q - bar.q) / (end - bar.q) * (w - 20);
-      const sf = song.keyAt(bar.q).sf, beams = beamGroups(track.notes, bar, end, top, reference, sf, xAt);
+      const beams = beamGroups(track.notes, bar, end, top, reference, sfAt, xAt);
       let seen = false;
       for (const note of track.notes) {
         if (note.q >= end) break;
         if (note.q + note.len <= bar.q) continue;
         seen = true;
-        const xx = xAt(Math.max(note.q, bar.q)), y = noteY(note.p, top, reference, sf);
+        const xx = xAt(Math.max(note.q, bar.q)), sf = sfAt(note.q), y = noteY(note.p, top, reference, sf);
         const down = y < top + 14, dy = down ? 22 : -22, stem = xx + (down ? -4.2 : 4.2);
         const len = writtenLength(Math.min(end, note.q + note.len) - Math.max(note.q, bar.q)), beam = beams.get(note);
         for (let ly = top - 7; ly >= y; ly -= 7) s += line(xx - 7, ly, xx + 7, ly);
