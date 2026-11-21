@@ -18,7 +18,7 @@ Open [midi-mixer](http://127.0.0.1:8000). The Astro dev server refreshes open pa
 1. Pick a song from the rehearsal playlist or choose **Load MIDI files** to import one or more `.mid` or `.midi` files.
 2. Use the **Track mixer** to solo your part, mute other parts or adjust their levels. Click a track’s instrument to search for a different sound. Select several tracks to mute or solo them together.
 3. Click a note or measure to move the green playhead. Use **Cue Here**, Shift-click the score or enter a **Start bar** to set the orange cue. Press **R** to return to it. Adjust **BPM** or **Speed** to practise more slowly without changing pitch.
-4. Use **Staff labels** to show note names or movable-do sol-fa beneath the staves. The default is **None**. Sol-fa follows the MIDI key signature and uses C as Do when the file has no key signature.
+4. Use **Staff labels** to show note names, note names with their octave number (scientific pitch notation, so middle C is C4), or movable-do sol-fa beneath the staves. The default is **None**. Sol-fa follows the MIDI key signature and uses C as Do when the file has no key signature.
 5. If the MIDI file has section markers (such as V1, PC1, C1 or Bridge), tap a section under **Sections** to jump there. This also sets the start cue and the loop bars to that section, so turning on **Loop** repeats just that section. Otherwise, set the **A** and **B** bar numbers and turn on **Loop** to repeat a passage. Use **Click** for a beat aligned with the song, or open **Metronome** to set your own tempo and beats per bar.
 
 Open **Tuning fork** for a steady reference pitch. It defaults to A4 at 440 Hz.
