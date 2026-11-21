@@ -22,7 +22,7 @@ interface Listening { stream: MediaStream; source: MediaStreamAudioSourceNode; a
 
 export function initPitchDetector(): void {
   const panel = $<HTMLDialogElement>('pitchDetector'), listen = $('pitchListen');
-  const canvas = $<HTMLCanvasElement>('pitchTrail'), needle = $('pitchNeedle');
+  const canvas = $<HTMLCanvasElement>('pitchTrail'), wave = $<HTMLCanvasElement>('pitchWave'), needle = $('pitchNeedle');
   let active: Listening | undefined, generation = 0;
   let recent: number[] = [], lastHeard = 0, announced = {note: -1, at: 0};
   const trail: {t: number; midi: number | null}[] = [];
@@ -89,6 +89,41 @@ export function initPitchDetector(): void {
     g.lineWidth = 1;
   }
 
+  // Oscilloscope view of the microphone. While a note is heard it shows three cycles,
+  // starting at a rising zero crossing, so the wave stands still and its shape (the
+  // voice's tone colour) is easy to see. Otherwise it shows the last ~20 ms as-is.
+  function drawWave(samples: Float32Array | null, hz: number | null, sampleRate: number, tone: Tone | null) {
+    const dpr = window.devicePixelRatio || 1, width = wave.clientWidth, height = wave.clientHeight;
+    if (wave.width !== Math.round(width * dpr)) { wave.width = Math.round(width * dpr); wave.height = Math.round(height * dpr); }
+    const g = wave.getContext('2d')!;
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, width, height);
+    const mid = height / 2;
+    g.strokeStyle = '#2a2a2c';
+    g.lineWidth = 1;
+    g.beginPath(); g.moveTo(0, mid); g.lineTo(width, mid); g.stroke();
+    if (!samples) return;
+    let start = 0, span = Math.min(samples.length, Math.round(sampleRate * .02));
+    if (hz) {
+      const period = sampleRate / hz;
+      span = Math.min(samples.length - 1, Math.round(period * 3));
+      for (let i = 1; i < samples.length - span; i++) if (samples[i - 1] < 0 && samples[i] >= 0) { start = i; break; }
+    }
+    let peak = 0;
+    for (let i = start; i < start + span; i++) peak = Math.max(peak, Math.abs(samples[i]));
+    // Normalise loud and soft singing alike, but keep near-silence looking flat.
+    const gain = (mid - 4) / Math.max(peak, .05);
+    g.strokeStyle = tone ? colours[tone] : '#636366';
+    g.lineWidth = 1.75;
+    g.lineJoin = 'round';
+    g.beginPath();
+    for (let i = 0; i <= span; i++) {
+      const px = i / span * width, py = mid - samples[start + i] * gain;
+      i ? g.lineTo(px, py) : g.moveTo(px, py);
+    }
+    g.stroke();
+  }
+
   function tick(samples: Float32Array<ArrayBuffer>) {
     if (!active) return;
     active.analyser.getFloatTimeDomainData(samples);
@@ -107,6 +142,7 @@ export function initPitchDetector(): void {
     trail.push({t: now, midi});
     if (midi !== null || now - lastHeard > SILENCE_MS) showReading(midi);
     drawTrail(now);
+    drawWave(samples, reading?.hz ?? null, active.analyser.context.sampleRate, midi === null ? null : toneOf(nearestNote(midi).cents));
     active.frame = requestAnimationFrame(() => tick(samples));
   }
 
@@ -122,6 +158,7 @@ export function initPitchDetector(): void {
     listen.textContent = 'Start listening';
     panel.classList.remove('listening');
     showReading(null);
+    drawWave(null, null, 0, null);
   }
 
   async function start() {
@@ -164,4 +201,5 @@ export function initPitchDetector(): void {
   document.addEventListener('visibilitychange', () => { if (document.hidden) stop(); });
   showReading(null);
   drawTrail(performance.now());
+  drawWave(null, null, 0, null);
 }

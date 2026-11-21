@@ -1,6 +1,6 @@
 ---
 // Floating pitch detector: listens through the microphone and shows the sung note,
-// how many cents sharp or flat it is, and a short pitch trail.
+// how many cents sharp or flat it is, a short pitch trail and the live waveform.
 import MicIcon from '../MicIcon.astro';
 ---
 <dialog id="pitchDetector" class="floating" aria-labelledby="pitchTitle">
@@ -16,6 +16,7 @@ import MicIcon from '../MicIcon.astro';
       <span>♭</span><span>0</span><span>♯</span>
     </div>
     <canvas id="pitchTrail" class="pitch-trail" width="292" height="104" role="img" aria-label="Pitch over the last few seconds"></canvas>
+    <canvas id="pitchWave" class="pitch-wave" width="292" height="56" aria-hidden="true"></canvas>
     <p id="pitchStatus" class="visually-hidden" aria-live="polite"></p>
     <button id="pitchListen" type="button">Start listening</button>
     <p class="pitch-hint">Sing or play one note at a time. Wear headphones while a song plays so the mic only hears you.</p>
