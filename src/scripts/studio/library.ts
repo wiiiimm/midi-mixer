@@ -3,6 +3,7 @@ import { $, esc, formatTime } from '../lib/dom';
 import type { Song } from '../lib/types';
 import { parseMidi } from '../midi/parse';
 import { bundledSongs } from '../midi/repertoire';
+import { syncMetronome } from '../tools/metronome-window';
 import { whileBusy } from '../ui/loading';
 import { notify } from '../ui/toast';
 import { setCurrentKey } from './key';
@@ -135,6 +136,7 @@ export function selectSong(song: Song): void {
   resetScoreView();
   resetTransport(song);
   renderSections(song);
+  syncMetronome(song);
   useMixFor(song);
   renderLibrary();
   renderScore();

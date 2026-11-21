@@ -61,16 +61,34 @@ async function start() {
 }
 
 $('start').addEventListener('click', () => running ? stop() : start());
-field('slider').addEventListener('input', () => { field('bpm').value = field('slider').value; });
-field('bpm').addEventListener('change', () => {
-  const bpm = String(Math.max(30, Math.min(190, Math.round(Number(field('bpm').value)) || 95)));
+const embedded = window.parent !== window && new URLSearchParams(location.search).has('embedded');
+
+function setBpm(value: unknown) {
+  const bpm = String(Math.max(30, Math.min(190, Math.round(Number(value)) || 95)));
   field('slider').value = field('bpm').value = bpm;
-});
+  return Number(bpm);
+}
+
+/** Tells the studio about a tempo the user chose, so it survives reopening the window. */
+function reportBpm() {
+  if (embedded) window.parent.postMessage({type: 'metronome-bpm-changed', bpm: Number(field('slider').value)}, location.origin);
+}
+
+field('slider').addEventListener('input', () => { field('bpm').value = field('slider').value; });
+field('slider').addEventListener('change', reportBpm);
+field('bpm').addEventListener('change', () => { setBpm(field('bpm').value); reportBpm(); });
 $('meter').addEventListener('change', () => { beat = 0; drawLights(); });
 window.addEventListener('pagehide', stop);
 drawLights();
 
-if (window.parent !== window && new URLSearchParams(location.search).has('embedded')) {
+// The studio passes the song's opening tempo in the URL, and a new one when the song changes.
+const initialBpm = new URLSearchParams(location.search).get('bpm');
+if (initialBpm !== null) setBpm(initialBpm);
+
+if (embedded) {
   document.body.classList.add('embedded');
   window.addEventListener('keydown', e => { if (e.key === 'Escape') window.parent.postMessage('close-metronome', location.origin); });
+  window.addEventListener('message', e => {
+    if (e.source === window.parent && e.origin === location.origin && e.data?.type === 'metronome-set-bpm') setBpm(e.data.bpm);
+  });
 }
