@@ -68,4 +68,4 @@ export interface PlaybackVoice extends StoppableVoice {
   end: number;
 }
 
-export type StaffLabelMode = 'none' | 'note' | 'solfa';
+export type StaffLabelMode = 'none' | 'note' | 'noteOctave' | 'solfa';
