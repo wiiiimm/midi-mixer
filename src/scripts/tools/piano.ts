@@ -5,7 +5,7 @@ import { shortcutsBlocked } from '../lib/shortcuts';
 import { isBlackKey, pitchName, pitchNameWithOctave, spokenPitchName, trackColours } from '../lib/notes';
 import type { StoppableVoice } from '../lib/types';
 import { currentKey, onKeyChange } from '../studio/key';
-import { playable, playbackVoices } from '../studio/playback';
+import { playable, playbackVoices, scrubbing } from '../studio/playback';
 import { PITCH_HEARD } from './pitch-detector';
 import { studio } from '../studio/state';
 
@@ -82,7 +82,7 @@ export function initPiano(): void {
   let painted = new Map<number, string>();
   function paintPlayback() {
     const sounding = new Map<number, Set<number>>(), audio = currentAudio();
-    if (studio.playing && audio?.ctx.state === 'running') {
+    if ((studio.playing || scrubbing()) && audio?.ctx.state === 'running') {
       const now = audio.ctx.currentTime;
       for (const voice of playbackVoices()) {
         if (voice.start > now || voice.end <= now || !playable(voice.track) || studio.mix[voice.track].vol <= 0) continue;

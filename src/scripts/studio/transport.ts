@@ -5,6 +5,7 @@ import { playBrandScale } from '../ui/brand';
 import { setCurrentKey } from './key';
 import { loopRange, onPlaybackFinished, pausePlayback, restart, setClickTrack, startPlayback } from './playback';
 import { followFallbackPage, initScore, revealPositionAfterJump, showPositionPage, updateCursor } from './score';
+import { initScrub } from './scrub';
 import { barAt, studio } from './state';
 
 // Transport: play/pause, position, tempo and speed, loop A–B, start cue,
@@ -51,7 +52,7 @@ export function display(): void {
 }
 
 /** Jumps to a position (seconds), keeping playback going if it was playing. */
-export function seek(seconds: number): void {
+export function seek(seconds: number, reveal = true): void {
   const song = studio.song;
   if (!song) return;
   studio.pos = Math.min(song.duration, Math.max(0, seconds));
@@ -62,7 +63,22 @@ export function seek(seconds: number): void {
   showPositionPage();
   if (studio.playing) restart();
   display();
-  revealPositionAfterJump();
+  if (reveal) revealPositionAfterJump();
+}
+
+async function play() {
+  try {
+    if (!await startPlayback()) return;
+    $('play').textContent = PAUSE;
+    playBrandScale();
+  } catch (error) {
+    $('status').textContent = error instanceof Error ? error.message : String(error);
+  }
+}
+
+function pause() {
+  pausePlayback();
+  $('play').textContent = PLAY;
 }
 
 function updateCue() {
@@ -123,19 +139,12 @@ export function initTransport(): void {
     seek(studio.cue);
   });
 
-  $('play').addEventListener('click', async () => {
-    if (studio.playing) {
-      pausePlayback();
-      $('play').textContent = PLAY;
-      return;
-    }
-    try {
-      if (!await startPlayback()) return;
-      $('play').textContent = PAUSE;
-      playBrandScale();
-    } catch (error) {
-      $('status').textContent = error instanceof Error ? error.message : String(error);
-    }
+  $('play').addEventListener('click', () => studio.playing ? pause() : play());
+  // Scrubbing pauses playback while the pointer is down and carries on from where it is let go.
+  initScrub({
+    seek: seconds => seek(seconds, false),
+    setCue: seconds => { studio.cue = seconds; updateCue(); },
+    pause, resume: play,
   });
   $('home').addEventListener('click', () => seek(studio.cue));
   input('seek').addEventListener('input', () => seek(Number(input('seek').value)));
