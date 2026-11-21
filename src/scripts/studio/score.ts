@@ -365,7 +365,9 @@ function fallbackBeatAt(song: Song, clientX: number, clamp: boolean): number | u
   const j = Math.min(count - 1, Math.max(0, Math.floor((x - scoreStart) / w)));
   const start = song.bars[page + j].q, length = song.bars[page + j + 1].q - start;
   const ratio = (x - scoreStart - j * w - 14) / (w - 20);
-  return start + Math.max(0, Math.min(clamp && j === count - 1 ? 1 : .999, ratio)) * length;
+  // Only the song's very end may be reached; elsewhere stay inside this page so a scrub doesn't turn it.
+  const end = clamp && page + count >= song.bars.length - 1 && j === count - 1 ? 1 : .999;
+  return start + Math.max(0, Math.min(end, ratio)) * length;
 }
 
 /** Scrolls the engraved score sideways by dx pixels; returns whether it moved. */

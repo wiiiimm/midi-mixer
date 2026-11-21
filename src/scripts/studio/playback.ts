@@ -200,7 +200,8 @@ export function scrubTo(seconds: number): void {
       if (note.s > seconds) break;
       if (note.e <= seconds) continue;
       here.add(note);
-      if (!scrubbed.has(note)) scrubbed.set(note, sound(i, note, now, Math.min(scrubHold, (note.e - seconds) / studio.rate)));
+      // Held for as long as the playhead stays on the note (up to scrubHold), however near its end.
+      if (!scrubbed.has(note)) scrubbed.set(note, sound(i, note, now, scrubHold));
     }
   });
   for (const [note, voice] of scrubbed) {
