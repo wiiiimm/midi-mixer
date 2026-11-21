@@ -42,6 +42,7 @@ export function display(): void {
   updateTempoDisplay(song);
   const q = song.beat(studio.pos), i = barAt(song, q), bar = song.bars[i];
   $('beatpos').textContent = (i + 1) + ' : ' + Math.min(bar.n, 1 + Math.floor((q - bar.q) * bar.d / 4));
+  $('bars').textContent = 'Bar ' + (i + 1);
   input('seek').value = String(studio.pos);
   $('clock').textContent = formatTime(studio.pos) + ' / ' + formatTime(song.duration);
   updateCursor();

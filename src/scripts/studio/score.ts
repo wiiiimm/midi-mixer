@@ -158,12 +158,10 @@ function scoreBarAtX(x: number): number {
   return low;
 }
 
+/** Enables the scroll arrows only where there is more score to scroll to. */
 function updateVisibleBars() {
   if (!engravedView) return;
   const {scrollLeft, clientWidth, scrollWidth} = viewport();
-  const first = scoreBarAtX((scrollLeft + 1) / zoom) + 1;
-  const last = scoreBarAtX((scrollLeft + clientWidth - 1) / zoom) + 1;
-  $('bars').textContent = first === last ? 'Bar ' + first : 'Bars ' + first + '–' + last;
   $<HTMLButtonElement>('prev').disabled = scrollLeft < 1;
   $<HTMLButtonElement>('next').disabled = scrollLeft + clientWidth >= scrollWidth - 1;
 }
@@ -594,7 +592,6 @@ function renderFallback(song: Song) {
   svg.innerHTML = '<rect width="100%" height="' + h + '" fill="#f5f8fb"/>' + connectors + s +
     '<g id="cueCursor" pointer-events="none"><rect y="5" width="27" height="13" rx="2" fill="#a7410b"/><text x="3" y="15" fill="white" font-size="9">Cue</text><path d="M0 18V' + (h - 10) + '" stroke="#ca5a19" stroke-dasharray="3 3"/></g>' +
     '<g id="cursor" pointer-events="none"><path d="M-4 25h8l-4 6z" fill="#00ad81"/>' + line(0, 30, 0, h - 10, '#00ad81', 1.5) + '</g>';
-  $('bars').textContent = 'Bars ' + (page + 1) + '–' + (page + count);
   $<HTMLButtonElement>('prev').disabled = page === 0;
   $<HTMLButtonElement>('next').disabled = page + count >= bars.length - 1;
   updateCursor();
