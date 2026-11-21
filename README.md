@@ -25,6 +25,8 @@ Open **Tuning fork** for a steady reference pitch. It defaults to A4 at 440 Hz.
 
 Open **Pitch** and tap **Start listening** to check your own pitch through the microphone. It shows the nearest note, how many cents sharp or flat you are (within 10 cents counts as in tune), a trail of the last five seconds and the live waveform of your voice. It hears one voice or instrument at a time, so wear headphones if a song is playing. The microphone is only used in your browser and is released when you close the window.
 
+Note names everywhere (staff labels, the practice piano, the tuning fork and the pitch readout) follow the key signature at the playhead. Flat keys such as F, B♭ and E♭ show black keys as flats (B♭, E♭), and sharp keys such as G, D and A show them as sharps (F♯, C♯). C major, A minor and files without a key signature use sharps. If the song changes key, the names change as playback reaches the new key.
+
 The [standalone metronome](http://127.0.0.1:8000/metronome.html) also works without loading a song.
 
 ## Rehearse with an a cappella group

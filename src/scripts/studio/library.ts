@@ -5,6 +5,7 @@ import { parseMidi } from '../midi/parse';
 import { bundledSongs } from '../midi/repertoire';
 import { whileBusy } from '../ui/loading';
 import { notify } from '../ui/toast';
+import { setCurrentKey } from './key';
 import { useMixFor } from './mixer';
 import { pausePlayback, resetBuses } from './playback';
 import { clearScore, renderScore, resetScoreView } from './score';
@@ -146,6 +147,7 @@ function clearSelection() {
   pausePlayback();
   resetBuses();
   studio.song = null;
+  setCurrentKey(null);
   studio.mix = [];
   studio.pos = studio.cue = 0;
   $('rows').innerHTML = '';
