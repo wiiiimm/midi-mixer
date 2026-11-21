@@ -16,6 +16,7 @@ interface HeldKey { key: HTMLElement; voice?: StoppableVoice }
 const shortcuts = "AWSEDFTGYHUJKOLP;'";
 const shortcutCodes = [...shortcuts].map(key => ({';': 'Semicolon', "'": 'Quote'} as Record<string, string>)[key] ?? 'Key' + key);
 const WHITE_KEYS = 77;
+const MIDDLE_C = 60;
 
 export function initPiano(): void {
   const keyboard = $('keys'), viewport = keyboard.parentElement!;
@@ -29,7 +30,17 @@ export function initPiano(): void {
   // ── Octave buttons glide to the next/previous C; the label shows the visible range ──
   const cKeys = () => [...keyboard.querySelectorAll<HTMLElement>('.white')].filter(k => Number(k.dataset.pitch) % 12 === 0);
   let goal: number | null = null, goalTimer: ReturnType<typeof setTimeout> | undefined;
+  // Until the player scrolls, keep middle C centred, even if layout settles after start-up.
+  let autoCentre = true;
+  function centreMiddleC(behavior: ScrollBehavior = 'auto') {
+    const key = keysByPitch.get(MIDDLE_C);
+    if (!key || !viewport.clientWidth) return;
+    clearTimeout(goalTimer);
+    goal = null;
+    viewport.scrollTo({left: key.offsetLeft + key.offsetWidth / 2 - viewport.clientWidth / 2, behavior});
+  }
   function scrollOctave(direction: number) {
+    autoCentre = false;
     const left = goal ?? viewport.scrollLeft, keys = cKeys();
     const target = direction > 0 ? keys.find(k => k.offsetLeft > left + 2) : keys.findLast(k => k.offsetLeft < left - 2);
     goal = Math.max(0, Math.min(viewport.scrollWidth - viewport.clientWidth,
@@ -50,9 +61,13 @@ export function initPiano(): void {
   }
   let rangeFrame = 0;
   viewport.addEventListener('scroll', () => { cancelAnimationFrame(rangeFrame); rangeFrame = requestAnimationFrame(updateRange); }, {passive: true});
-  new ResizeObserver(updateRange).observe(viewport);
+  new ResizeObserver(() => {
+    if (autoCentre) centreMiddleC();
+    updateRange();
+  }).observe(viewport);
   $('lowerKeys').addEventListener('click', () => scrollOctave(-1));
   $('higherKeys').addEventListener('click', () => scrollOctave(1));
+  $('centreKeys').addEventListener('click', () => centreMiddleC('smooth'));
 
   // All 128 General MIDI sounds (the drum kit is for MIDI percussion tracks only).
   gmNames.forEach((name, index) => voiceSelect.add(new Option(name, String(index))));
@@ -144,7 +159,7 @@ export function initPiano(): void {
   });
 
   // ── Keyboard layout ──
-  function build() {
+  function build(centre = false) {
     releaseAll();
     keyboard.replaceChildren();
     buttons.length = 0;
@@ -181,6 +196,7 @@ export function initPiano(): void {
         const distance = e.clientX - gesture.x;
         if (!gesture.dragging && Math.abs(distance) < 7) return;
         gesture.dragging = true;
+        autoCentre = false;
         release(e.pointerId);
         viewport.scrollLeft = gesture.left - distance;
       };
@@ -198,7 +214,12 @@ export function initPiano(): void {
       if (letter) buttons[i] = key;
       keyboard.append(key);
     }
-    // A rebuild jumps to the new octave, so drop any glide target from earlier clicks.
+    if (centre) {
+      centreMiddleC();
+      return;
+    }
+    // Choosing a shortcut octave jumps to it, so drop any glide target from earlier clicks.
+    autoCentre = false;
     clearTimeout(goalTimer);
     goal = null;
     viewport.scrollLeft = keysByPitch.get(start)!.offsetLeft;
@@ -232,8 +253,19 @@ export function initPiano(): void {
     if (e.ctrlKey || e.shiftKey || Math.abs(e.deltaX) >= Math.abs(e.deltaY)) return;
     const old = viewport.scrollLeft;
     viewport.scrollLeft += e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? viewport.clientWidth : 1);
-    if (viewport.scrollLeft !== old) e.preventDefault();
+    if (viewport.scrollLeft !== old) {
+      autoCentre = false;
+      e.preventDefault();
+    }
   }, {passive: false});
-  octave.addEventListener('change', build);
-  build();
+  // Native scrolling (trackpad, scrollbar) also counts as the player taking over.
+  viewport.addEventListener('pointerdown', () => { autoCentre = false; });
+  viewport.addEventListener('wheel', () => { autoCentre = false; }, {passive: true});
+  // A long press on a key must not open the iOS magnifier, text selection or callout menu.
+  // Keys already disable native panning (touch-action: none), and pointer events still fire.
+  keyboard.addEventListener('touchstart', e => { if (e.cancelable) e.preventDefault(); }, {passive: false});
+  keyboard.addEventListener('contextmenu', e => e.preventDefault());
+  keyboard.addEventListener('selectstart', e => e.preventDefault());
+  octave.addEventListener('change', () => build());
+  build(true);
 }
