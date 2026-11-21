@@ -6,6 +6,7 @@ import { isBlackKey, pitchName, pitchNameWithOctave, spokenPitchName, trackColou
 import type { StoppableVoice } from '../lib/types';
 import { currentKey, onKeyChange } from '../studio/key';
 import { playable, playbackVoices } from '../studio/playback';
+import { PITCH_HEARD } from './pitch-detector';
 import { studio } from '../studio/state';
 
 // Sound-check piano: the full MIDI range in a horizontally scrolling keyboard,
@@ -103,6 +104,17 @@ export function initPiano(): void {
     painted = next;
   }
   setInterval(paintPlayback, 20);
+
+  // ── Light up the note the pitch detector hears, while the keyboard is on display ──
+  let heard: number | null = null;
+  function paintHeard() {
+    keyboard.querySelector('.heard')?.classList.remove('heard');
+    if (heard !== null && !piano.hidden) keysByPitch.get(heard)?.classList.add('heard');
+  }
+  document.addEventListener(PITCH_HEARD, e => {
+    heard = (e as CustomEvent<number | null>).detail;
+    paintHeard();
+  });
 
   // ── Playing notes ──
   const isHeld = (key: HTMLElement) => [...held.values()].some(h => h.key === key);
@@ -224,6 +236,7 @@ export function initPiano(): void {
       if (letter) buttons[i] = key;
       keyboard.append(key);
     }
+    paintHeard();
     if (centre) {
       centreMiddleC();
       return;
@@ -255,7 +268,10 @@ export function initPiano(): void {
     if (!e.repeat) press(e.code, buttons[i]);
   });
   window.addEventListener('keyup', e => release(e.code, true));
-  $('keytoggle').addEventListener('click', () => { if (piano.hidden) releaseAll(); });
+  $('keytoggle').addEventListener('click', () => {
+    if (piano.hidden) releaseAll();
+    paintHeard();
+  });
   window.addEventListener('blur', releaseAll);
   document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
   // A vertical mouse wheel scrolls the keyboard sideways.

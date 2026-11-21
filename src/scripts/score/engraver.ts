@@ -167,9 +167,10 @@ function writeLayer(events: NoteEvent[], first: number, context: LayerContext, s
         '<chord xml:id="' + id + '"' + rhythm + '>' + notes + '</chord>' : notes });
       if (mode !== 'none' && onset === event.start) {
         const text = pitches.map(pitch => {
-          const {letter, accidental} = spell(pitch,key.sf);
+          const {letter, accidental, octave} = spell(pitch,key.sf);
           return mode === 'solfa' ? solfa[(pitch-key.tonic+12)%12] :
-            letter.toUpperCase() + (({s:'♯',f:'♭'} as Record<string, string>)[accidental] ?? '');
+            letter.toUpperCase() + (({s:'♯',f:'♭'} as Record<string, string>)[accidental] ?? '') +
+            (mode === 'noteOctave' ? octave : '');
         }).join(' · ');
         labels.push('<dir type="staff-label" staff="' + staff + '" place="below" startid="#' +
           id + '"><rend fontsize="small">' + escape(text) + '</rend></dir>');

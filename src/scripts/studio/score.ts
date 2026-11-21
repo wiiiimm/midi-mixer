@@ -1,5 +1,5 @@
 import { $, esc } from '../lib/dom';
-import { isBlackKey, pitchName, solfaNames, spellPitch, trackColours } from '../lib/notes';
+import { isBlackKey, pitchName, pitchNameWithOctave, solfaNames, spellPitch, trackColours } from '../lib/notes';
 import type { Bar, KeySignature, Note, Song, StaffLabelMode } from '../lib/types';
 import { clefs } from '../score/clefs';
 import type { Engraver } from '../score/engraver';
@@ -446,7 +446,8 @@ const writtenLength = (length: number) => writtenValues.reduce((best, value) =>
 const flagCount = (length: number) => length <= .125 ? 3 : length <= .25 ? 2 : length < 1 ? 1 : 0;
 
 const staffLabel = (pitch: number, key: KeySignature, mode: StaffLabelMode) =>
-  mode === 'solfa' ? solfaNames[(pitch - key.tonic + 12) % 12] : pitchName(pitch, key.sf);
+  mode === 'solfa' ? solfaNames[(pitch - key.tonic + 12) % 12] :
+    mode === 'noteOctave' ? pitchNameWithOctave(pitch, key.sf) : pitchName(pitch, key.sf);
 
 interface Stem { note: Note; x: number; y: number; down: boolean; flags: number; beat: number; length: number; endY?: number; next?: Stem; previous?: Stem }
 
