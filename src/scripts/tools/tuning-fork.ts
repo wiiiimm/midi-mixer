@@ -1,14 +1,15 @@
 import { currentAudio, enableAudio } from '../audio/engine';
 import { $ } from '../lib/dom';
-import { frequencyOf, octaveOf, sharpNames } from '../lib/notes';
+import { frequencyOf, octaveOf, pitchName, pitchNameWithOctave, spokenPitchName } from '../lib/notes';
+import { currentKey, onKeyChange } from '../studio/key';
 import { registerFloatingWindow } from '../ui/floating-windows';
 
 // Tuning fork: a pure sine tone, chosen from a one-octave keyboard plus an
-// octave stepper (C2–B6). Arrow keys move by a semitone or an octave.
+// octave stepper (C2–B6). Arrow keys move by a semitone or an octave. Black keys are
+// named as sharps or flats to match the key of the selected song.
 
 const LOWEST = 36, HIGHEST = 95;
 const whiteIndex: Record<number, number> = {0: 0, 2: 1, 4: 2, 5: 3, 7: 4, 9: 5, 11: 6};
-const keyNames = ['C', 'C sharp', 'D', 'D sharp', 'E', 'F', 'F sharp', 'G', 'G sharp', 'A', 'A sharp', 'B'];
 
 export function initTuningFork(): void {
   const pitch = $<HTMLSelectElement>('tuningPitch'), play = $('tuningPlay');
@@ -16,24 +17,30 @@ export function initTuningFork(): void {
   let tone: {osc: OscillatorNode; gain: GainNode} | undefined, generation = 0;
 
   for (let note = LOWEST; note <= HIGHEST; note++) {
-    pitch.add(new Option(sharpNames[note % 12] + octaveOf(note), String(note), note === 69, note === 69));
+    pitch.add(new Option(pitchNameWithOctave(note), String(note), note === 69, note === 69));
   }
   for (let pc = 0; pc < 12; pc++) {
     const key = document.createElement('button'), black = !(pc in whiteIndex);
     key.type = 'button';
     key.dataset.pc = String(pc);
     key.className = black ? 'black' : 'white';
-    key.textContent = black ? '' : sharpNames[pc];
-    key.setAttribute('aria-label', keyNames[pc]);
+    key.textContent = black ? '' : pitchName(pc);
     if (black) key.style.left = 'calc(' + (whiteIndex[pc - 1] + 1) + ' * 100% / 7)';
     keys.append(key);
   }
 
   const current = () => Number(pitch.value);
+  /** Names the notes for the current key: the readout, key labels and pitch list. */
+  function spellNotes() {
+    const {sf} = currentKey();
+    for (const key of keys.children as HTMLCollectionOf<HTMLElement>) key.setAttribute('aria-label', spokenPitchName(Number(key.dataset.pc), sf, false));
+    for (const option of pitch.options) option.text = pitchNameWithOctave(Number(option.value), sf);
+    $('tuningNote').textContent = pitchName(current(), sf);
+  }
   function updatePitch() {
     const note = current(), hz = frequencyOf(note);
     $('tuningFrequency').textContent = Number(hz.toFixed(2)) + ' Hz';
-    $('tuningNote').textContent = sharpNames[note % 12];
+    $('tuningNote').textContent = pitchName(note, currentKey().sf);
     $('tuningOctave').textContent = String(octaveOf(note));
     $<HTMLButtonElement>('tuningOctDown').disabled = note - 12 < LOWEST;
     $<HTMLButtonElement>('tuningOctUp').disabled = note + 12 > HIGHEST;
@@ -100,7 +107,9 @@ export function initTuningFork(): void {
     keys.querySelector<HTMLElement>('[aria-pressed=true]')?.focus();
   });
   pitch.addEventListener('change', updatePitch);
+  onKeyChange(spellNotes);
   registerFloatingWindow({panel, opener: $('openTuning'), onClose: stopTone});
   document.addEventListener('visibilitychange', () => { if (document.hidden) stopTone(); });
+  spellNotes();
   updatePitch();
 }

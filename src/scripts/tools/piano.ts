@@ -2,15 +2,17 @@ import { currentAudio, enableAudio, startSynthHold } from '../audio/engine';
 import { gmNames, loadInstrument, playSample } from '../audio/sampler';
 import { $ } from '../lib/dom';
 import { shortcutsBlocked } from '../lib/shortcuts';
-import { octaveOf, sharpNames, trackColours } from '../lib/notes';
+import { isBlackKey, pitchName, pitchNameWithOctave, spokenPitchName, trackColours } from '../lib/notes';
 import type { StoppableVoice } from '../lib/types';
+import { currentKey, onKeyChange } from '../studio/key';
 import { playable, playbackVoices, scrubbing } from '../studio/playback';
 import { PITCH_HEARD } from './pitch-detector';
 import { studio } from '../studio/state';
 
 // Sound-check piano: the full MIDI range in a horizontally scrolling keyboard,
 // playable by pointer, touch or computer keys, which also lights up the notes
-// that playback is sounding, striped in each track's colour.
+// that playback is sounding, striped in each track's colour. Black keys are named as
+// sharps or flats to match the key of the selected song.
 
 interface HeldKey { key: HTMLElement; voice?: StoppableVoice }
 
@@ -56,7 +58,7 @@ export function initPiano(): void {
       .filter(k => k.offsetLeft >= left - 1 && k.offsetLeft + k.offsetWidth <= right + 1);
     if (!visible.length) return;
     const lo = Number(visible[0].dataset.pitch), hi = Number(visible[visible.length - 1].dataset.pitch);
-    $('keysRange').textContent = sharpNames[lo % 12] + octaveOf(lo) + '–' + sharpNames[hi % 12] + octaveOf(hi);
+    $('keysRange').textContent = pitchNameWithOctave(lo) + '–' + pitchNameWithOctave(hi);
     $<HTMLButtonElement>('lowerKeys').disabled = left <= 1;
     $<HTMLButtonElement>('higherKeys').disabled = right >= viewport.scrollWidth - 1;
   }
@@ -170,6 +172,14 @@ export function initPiano(): void {
     if (!sustainEnabled) clearSustained();
   });
 
+  // ── Key names follow the selected song's key: C♯ in sharp keys, D♭ in flat keys ──
+  function nameKey(key: HTMLElement) {
+    const midi = Number(key.dataset.pitch), letter = key.dataset.shortcut, {sf} = currentKey();
+    key.setAttribute('aria-label', spokenPitchName(midi, sf) + (letter ? ', shortcut ' + letter : ''));
+    key.querySelector('strong')!.textContent = pitchName(midi, sf);
+  }
+  onKeyChange(() => keysByPitch.forEach(nameKey));
+
   // ── Keyboard layout ──
   function build(centre = false) {
     releaseAll();
@@ -182,15 +192,15 @@ export function initPiano(): void {
     let whiteCount = 0;
     for (let midi = 0; midi < 132; midi++) {
       const i = midi - start, letter = shortcuts[i] || '';
-      const name = sharpNames[midi % 12], sharp = name.includes('♯');
-      const key = document.createElement('button');
+      const black = isBlackKey(midi), key = document.createElement('button');
       key.type = 'button';
-      key.className = sharp ? 'black' : 'white';
+      key.className = black ? 'black' : 'white';
       key.dataset.pitch = String(midi);
+      if (letter) key.dataset.shortcut = letter;
       keysByPitch.set(midi, key);
-      key.setAttribute('aria-label', name + octaveOf(midi) + (letter ? ', shortcut ' + letter : ''));
-      key.innerHTML = '<strong>' + name + '</strong><small>' + letter + '</small>';
-      if (sharp) {
+      key.innerHTML = '<strong></strong><small>' + letter + '</small>';
+      nameKey(key);
+      if (black) {
         key.style.left = whiteCount / WHITE_KEYS * 100 + '%';
         key.style.width = 64 / WHITE_KEYS + '%';
       } else whiteCount++;

@@ -1,6 +1,7 @@
 import createVerovio from 'verovio/wasm';
 import { VerovioToolkit } from 'verovio/esm';
 import type { Bar, KeySignature, Note, Song, StaffLabelMode, Track } from '../lib/types';
+import { spellPitch } from '../lib/notes';
 import { DRUM_KIT } from '../midi/parse';
 
 // Turns a parsed MIDI song into MEI and engraves it with Verovio. This module (and
@@ -34,13 +35,14 @@ const escape = (value: unknown): string => String(value).replace(/[\u0000-\u0008
 const durations: [number, number, number][] = ([[64,1],[32,2],[16,4],[8,8],[4,16],[2,32],[1,64]] as const)
   .flatMap(([length, dur]): [number, number, number][] => length >= 2 ? [[length * 1.5, dur, 1], [length, dur, 0]] : [[length, dur, 0]])
   .sort(([a], [b]) => b - a);
-const sharp = ['c','cs','d','ds','e','f','fs','g','gs','a','as','b'];
-const flat = ['c','df','d','ef','e','f','gf','g','af','a','bf','b'];
 const solfa = ['Do','Di','Re','Ri','Mi','Fa','Fi','Sol','Si','La','Li','Ti'];
 
+const meiAccidentals: Record<string, string> = {'♯': 's', '♭': 'f', '': 'n'};
+
+/** MEI pitch name, accidental (s, f or n) and octave, spelt for the key like the rest of the app. */
 function spell(pitch: number, sf: number) {
-  const [letter, accidental = 'n'] = (sf < 0 ? flat : sharp)[pitch % 12];
-  return { letter, accidental, octave: Math.floor(pitch / 12) - 1 };
+  const { letter, accidental, octave } = spellPitch(pitch, sf);
+  return { letter: letter.toLowerCase(), accidental: meiAccidentals[accidental], octave };
 }
 
 function splitDuration(start: number, end: number, measureStart: number, beatLength: number): Fragment[] {
@@ -165,9 +167,10 @@ function writeLayer(events: NoteEvent[], first: number, context: LayerContext, s
         '<chord xml:id="' + id + '"' + rhythm + '>' + notes + '</chord>' : notes });
       if (mode !== 'none' && onset === event.start) {
         const text = pitches.map(pitch => {
-          const {letter, accidental} = spell(pitch,key.sf);
+          const {letter, accidental, octave} = spell(pitch,key.sf);
           return mode === 'solfa' ? solfa[(pitch-key.tonic+12)%12] :
-            letter.toUpperCase() + (({s:'♯',f:'♭'} as Record<string, string>)[accidental] ?? '');
+            letter.toUpperCase() + (({s:'♯',f:'♭'} as Record<string, string>)[accidental] ?? '') +
+            (mode === 'noteOctave' ? octave : '');
         }).join(' · ');
         labels.push('<dir type="staff-label" staff="' + staff + '" place="below" startid="#' +
           id + '"><rend fontsize="small">' + escape(text) + '</rend></dir>');

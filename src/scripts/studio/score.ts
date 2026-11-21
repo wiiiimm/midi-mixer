@@ -1,5 +1,5 @@
 import { $, esc } from '../lib/dom';
-import { sharpNames, solfaNames, trackColours } from '../lib/notes';
+import { isBlackKey, pitchName, pitchNameWithOctave, solfaNames, spellPitch, trackColours } from '../lib/notes';
 import type { Bar, KeySignature, Note, Song, StaffLabelMode } from '../lib/types';
 import { clefs } from '../score/clefs';
 import type { Engraver } from '../score/engraver';
@@ -470,9 +470,10 @@ export function initScore(seek: (seconds: number, setCue: boolean) => void): voi
 
 // ── Fallback "rehearsal score": a simple paged SVG staff per track ──
 
-const staffSteps = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6];
-function noteY(pitch: number, top: number, reference: number) {
-  const step = (Math.floor(pitch / 12) - 1) * 7 + staffSteps[pitch % 12];
+const letterSteps: Record<string, number> = {C: 0, D: 1, E: 2, F: 3, G: 4, A: 5, B: 6};
+/** Staff position of a note, spelt for the key: C♯ sits on the C line, D♭ on the D line. */
+function noteY(pitch: number, top: number, reference: number, sf: number) {
+  const {letter, octave} = spellPitch(pitch, sf), step = octave * 7 + letterSteps[letter];
   return top + 28 - (step - reference) * 3.5;
 }
 
@@ -483,11 +484,12 @@ const writtenLength = (length: number) => writtenValues.reduce((best, value) =>
 const flagCount = (length: number) => length <= .125 ? 3 : length <= .25 ? 2 : length < 1 ? 1 : 0;
 
 const staffLabel = (pitch: number, key: KeySignature, mode: StaffLabelMode) =>
-  mode === 'solfa' ? solfaNames[(pitch - key.tonic + 12) % 12] : sharpNames[pitch % 12];
+  mode === 'solfa' ? solfaNames[(pitch - key.tonic + 12) % 12] :
+    mode === 'noteOctave' ? pitchNameWithOctave(pitch, key.sf) : pitchName(pitch, key.sf);
 
 interface Stem { note: Note; x: number; y: number; down: boolean; flags: number; beat: number; length: number; endY?: number; next?: Stem; previous?: Stem }
 
-function beamGroups(notes: Note[], bar: Bar, end: number, top: number, reference: number, xAt: (q: number) => number) {
+function beamGroups(notes: Note[], bar: Bar, end: number, top: number, reference: number, sfAt: (q: number) => number, xAt: (q: number) => number) {
   const stems = new Map<Note, Stem>();
   let group: Stem[] = [];
   function finish() {
@@ -518,7 +520,7 @@ function beamGroups(notes: Note[], bar: Bar, end: number, top: number, reference
       finish();
       continue;
     }
-    const y = noteY(note.p, top, reference), down = y < top + 14;
+    const y = noteY(note.p, top, reference, sfAt(note.q)), down = y < top + 14;
     const prior = group[group.length - 1];
     if (prior && (prior.down !== down || prior.beat !== beat || Math.abs(prior.note.q + prior.length - note.q) > .015)) finish();
     group.push({note, x: xAt(note.q) + (down ? -4.2 : 4.2), y, down, flags, beat, length});
@@ -535,6 +537,8 @@ function renderFallback(song: Song) {
   let top = 52, previousStaff: number | undefined, connectors = '';
   let s = '<rect width="100%" height="32" fill="#111d30"/>';
   for (let j = 0; j < count; j++) s += '<text x="' + (scoreStart + j * w) + '" y="21" fill="#bed1df" font-size="11">' + (page + j + 1) + '</text>';
+  // Each note is spelt for the key at its onset, matching its staff label, even when the key changes mid-bar.
+  const sfAt = (q: number) => song.keyAt(q).sf;
   song.tracks.forEach((track, i) => {
     const labels = new Map<number, Map<number, string>>();
     let labelFloor = top + 28;
@@ -562,18 +566,18 @@ function renderFallback(song: Song) {
         bar.n + '<tspan x="' + (x - 5) + '" dy="14">' + bar.d + '</tspan></text>';
       s += line(x, top, x, top + 28);
       const xAt = (q: number) => x + 14 + (q - bar.q) / (end - bar.q) * (w - 20);
-      const beams = beamGroups(track.notes, bar, end, top, reference, xAt);
+      const beams = beamGroups(track.notes, bar, end, top, reference, sfAt, xAt);
       let seen = false;
       for (const note of track.notes) {
         if (note.q >= end) break;
         if (note.q + note.len <= bar.q) continue;
         seen = true;
-        const xx = xAt(Math.max(note.q, bar.q)), pc = note.p % 12, y = noteY(note.p, top, reference);
+        const xx = xAt(Math.max(note.q, bar.q)), sf = sfAt(note.q), y = noteY(note.p, top, reference, sf);
         const down = y < top + 14, dy = down ? 22 : -22, stem = xx + (down ? -4.2 : 4.2);
         const len = writtenLength(Math.min(end, note.q + note.len) - Math.max(note.q, bar.q)), beam = beams.get(note);
         for (let ly = top - 7; ly >= y; ly -= 7) s += line(xx - 7, ly, xx + 7, ly);
         for (let ly = top + 35; ly <= y; ly += 7) s += line(xx - 7, ly, xx + 7, ly);
-        if ([1, 3, 6, 8, 10].includes(pc)) s += '<text x="' + (xx - 13) + '" y="' + (y + 4) + '" font-size="12">♯</text>';
+        if (isBlackKey(note.p)) s += '<text x="' + (xx - 13) + '" y="' + (y + 4) + '" font-size="12">' + spellPitch(note.p, sf).accidental + '</text>';
         s += '<ellipse cx="' + xx + '" cy="' + y + '" rx="5" ry="3.2" transform="rotate(-19 ' + xx + ' ' + y + ')" fill="' + (len >= 1.9 ? 'white' : '#302c36') + '" stroke="#302c36"/>';
         if (len < 3.9) {
           s += line(stem, y, stem, beam?.endY ?? y + dy, '#302c36', 1.3);
