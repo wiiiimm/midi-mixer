@@ -11,6 +11,7 @@ const IN_TUNE = 10, CLOSE = 25;           // cents
 const TRAIL_SECONDS = 5;
 const SMOOTHING = 9;                      // readings in the running median (~150 ms, steadies vibrato)
 const SILENCE_MS = 180;                   // gap before the readout shows no note
+const MIN_HZ = 60;                        // lowest pitch detectPitch looks for
 
 type Tone = 'good' | 'close' | 'off';
 const toneOf = (cents: number): Tone => Math.abs(cents) <= IN_TUNE ? 'good' : Math.abs(cents) <= CLOSE ? 'close' : 'off';
@@ -24,7 +25,7 @@ export function initPitchDetector(): void {
   const panel = $<HTMLDialogElement>('pitchDetector'), listen = $('pitchListen');
   const canvas = $<HTMLCanvasElement>('pitchTrail'), wave = $<HTMLCanvasElement>('pitchWave'), needle = $('pitchNeedle');
   let active: Listening | undefined, generation = 0;
-  let recent: number[] = [], lastHeard = 0, announced = {note: -1, at: 0};
+  let recent: number[] = [], lastHeard = 0, announced = {key: '', at: 0};
   const trail: {t: number; midi: number | null}[] = [];
 
   function showReading(midi: number | null) {
@@ -42,10 +43,10 @@ export function initPitchDetector(): void {
     $('pitchVerdict').textContent = tone === 'good' ? 'In tune' : off + '¢ ' + (cents < 0 ? 'flat' : 'sharp');
     panel.dataset.tone = tone;
     needle.style.left = 50 + Math.max(-50, Math.min(50, cents)) + '%';
-    // Screen readers hear the note when it settles, at most once a second.
-    const now = performance.now();
-    if (note !== announced.note && now - announced.at > 1000) {
-      announced = {note, at: now};
+    // Screen readers hear the note and verdict when either changes, at most once a second.
+    const now = performance.now(), key = note + tone;
+    if (key !== announced.key && now - announced.at > 1000) {
+      announced = {key, at: now};
       $('pitchStatus').textContent = spokenName(note) + ', ' + $('pitchVerdict').textContent;
     }
   }
@@ -106,7 +107,9 @@ export function initPitchDetector(): void {
     let start = 0, span = Math.min(samples.length, Math.round(sampleRate * .02));
     if (hz) {
       const period = sampleRate / hz;
-      span = Math.min(samples.length - 1, Math.round(period * 3));
+      // Leave at least one period before the span for finding the crossing; low notes
+      // that don't fit three cycles after it show fewer.
+      span = Math.max(1, Math.min(Math.round(period * 3), samples.length - 1 - Math.ceil(period)));
       for (let i = 1; i < samples.length - span; i++) if (samples[i - 1] < 0 && samples[i] >= 0) { start = i; break; }
     }
     let peak = 0;
@@ -155,6 +158,7 @@ export function initPitchDetector(): void {
     }
     active = undefined;
     recent = [];
+    announced = {key: '', at: 0};
     listen.textContent = 'Start listening';
     panel.classList.remove('listening');
     showReading(null);
@@ -171,11 +175,14 @@ export function initPitchDetector(): void {
     listen.textContent = 'Starting…';
     try {
       const {ctx} = await enableAudio();
+      if (request !== generation || !panel.open) return;
       // Raw input: echo cancellation and noise suppression bend sustained notes.
       const stream = await navigator.mediaDevices.getUserMedia({audio: {echoCancellation: false, noiseSuppression: false, autoGainControl: false}});
       if (request !== generation || !panel.open) { stream.getTracks().forEach(track => track.stop()); return; }
       const source = ctx.createMediaStreamSource(stream), analyser = ctx.createAnalyser();
-      analyser.fftSize = 2048;
+      // Two periods of the lowest note must fit in the frame, whatever the device's sample rate
+      // (2048 at 44.1/48 kHz, 4096 at 96 kHz).
+      analyser.fftSize = Math.min(32768, Math.max(2048, 2 ** Math.ceil(Math.log2(2 * ctx.sampleRate / MIN_HZ))));
       source.connect(analyser);
       active = {stream, source, analyser, frame: 0};
       trail.length = 0;
