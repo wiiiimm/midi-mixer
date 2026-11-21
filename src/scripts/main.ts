@@ -16,6 +16,7 @@ import { initSections } from './studio/sections';
 import { initTransport } from './studio/transport';
 import { initMetronomeWindow } from './tools/metronome-window';
 import { initPiano } from './tools/piano';
+import { initPitchDetector } from './tools/pitch-detector';
 import { initTuningFork } from './tools/tuning-fork';
 
 initShortcuts();
@@ -29,6 +30,7 @@ initMixer();
 initLibrary();
 initPiano();
 initTuningFork();
+initPitchDetector();
 initMetronomeWindow();
 initInstrumentPicker();
 initLayout();
