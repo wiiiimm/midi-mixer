@@ -1,11 +1,13 @@
 import { enableAudio } from '../audio/engine';
 import { $ } from '../lib/dom';
-import { octaveOf, sharpNames } from '../lib/notes';
+import { isBlackKey, pitchNameWithOctave, spokenPitchName } from '../lib/notes';
 import { decimate, detectPitch, median, midiOf, nearestNote } from '../lib/pitch';
+import { currentKey } from '../studio/key';
 import { registerFloatingWindow } from '../ui/floating-windows';
 
 // Pitch detector: listens through the microphone and shows the nearest note, how many
 // cents sharp or flat the singer is, and a trail of the last few seconds of pitch.
+// Note names follow the key of the selected song (B♭ in flat keys, A♯ in sharp keys).
 
 const IN_TUNE = 10, CLOSE = 25;           // cents
 const TRAIL_SECONDS = 5;
@@ -16,8 +18,8 @@ const MIN_HZ = 60;                        // lowest pitch detectPitch looks for
 type Tone = 'good' | 'close' | 'off';
 const toneOf = (cents: number): Tone => Math.abs(cents) <= IN_TUNE ? 'good' : Math.abs(cents) <= CLOSE ? 'close' : 'off';
 const colours: Record<Tone, string> = {good: '#30d158', close: '#ffd60a', off: '#ff9f0a'};
-const noteName = (note: number) => sharpNames[note % 12] + octaveOf(note);
-const spokenName = (note: number) => sharpNames[note % 12].replace('♯', ' sharp') + ' ' + octaveOf(note);
+const noteName = (note: number) => pitchNameWithOctave(note, currentKey().sf);
+const spokenName = (note: number) => spokenPitchName(note, currentKey().sf);
 
 interface Listening { stream: MediaStream; source: MediaStreamAudioSourceNode; analyser: AnalyserNode; frame: number }
 
@@ -69,7 +71,7 @@ export function initPitchDetector(): void {
     g.textBaseline = 'middle';
     let lastLabel = Infinity;
     for (let note = lo; note <= hi; note++) {
-      const natural = !sharpNames[note % 12].includes('♯'), at = y(note);
+      const natural = !isBlackKey(note), at = y(note);
       g.strokeStyle = natural ? '#3a3a3c' : '#2a2a2c';
       g.beginPath(); g.moveTo(labelWidth, at); g.lineTo(width, at); g.stroke();
       // Label natural notes that fit: inside the canvas and clear of the label below.

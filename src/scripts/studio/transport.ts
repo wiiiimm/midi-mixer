@@ -2,6 +2,7 @@ import { $, formatTime } from '../lib/dom';
 import { elementConsumesSpace, shortcutsBlocked } from '../lib/shortcuts';
 import type { Song } from '../lib/types';
 import { playBrandScale } from '../ui/brand';
+import { setCurrentKey } from './key';
 import { loopRange, onPlaybackFinished, pausePlayback, restart, setClickTrack, startPlayback } from './playback';
 import { followFallbackPage, initScore, revealPositionAfterJump, showPositionPage, updateCursor } from './score';
 import { barAt, studio } from './state';
@@ -43,6 +44,7 @@ export function display(): void {
   const q = song.beat(studio.pos), i = barAt(song, q), bar = song.bars[i];
   $('beatpos').textContent = (i + 1) + ' : ' + Math.min(bar.n, 1 + Math.floor((q - bar.q) * bar.d / 4));
   $('bars').textContent = 'Bar ' + (i + 1);
+  setCurrentKey(song.keyAt(q));
   input('seek').value = String(studio.pos);
   $('clock').textContent = formatTime(studio.pos) + ' / ' + formatTime(song.duration);
   updateCursor();
