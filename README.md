@@ -43,7 +43,7 @@ Turn on **Sustain** to keep notes sounding after you let go, so you can build a 
 
 Scroll horizontally to read the whole song on one continuous score. The arrows move the view by roughly one screen. Turn **Follow** off to browse independently during playback.
 
-Pinch the score to zoom in or out, between 40% and 300%. On a computer, pinch on the trackpad, hold Ctrl and scroll, or use the zoom slider and **−**/**+** buttons beside **Follow**. Click the percentage to return to 100%. The slider is hidden on phones, where pinching does the same job. Your zoom level is remembered in this browser.
+Pinch the score to zoom in or out, between 40% and 300%. On a computer, pinch on the trackpad, hold Ctrl and scroll, or use the zoom slider and **−**/**+** buttons beside **Follow**. Click the percentage to return to 100%. The slider is hidden on phones, where pinching does the same job. Your zoom level is remembered in this browser. Pinching anywhere else does not zoom the page, so the controls stay where they are; keyboard zoom (Ctrl/⌘ with + or −) and your device's own zoom and text-size settings still work.
 
 MIDI files are engraved in the browser as grouped staves with connected barlines, beams, rests and ties. The display uses part names, key signatures, lyrics and rehearsal markers when the MIDI provides them. MIDI playback uses the original timing.
 

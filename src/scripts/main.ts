@@ -3,6 +3,7 @@
 import { initShortcuts } from './lib/shortcuts';
 import { initPwa } from './ui/pwa';
 import { initScoreZoom } from './ui/score-zoom';
+import { blockPagePinchZoom } from './ui/page-zoom';
 import { initBrand, playBrandScale } from './ui/brand';
 import { initFloatingWindows } from './ui/floating-windows';
 import { initInstrumentPicker } from './ui/instrument-picker';
@@ -24,6 +25,7 @@ initLoading();
 initFloatingWindows();
 initPlayback();
 initTransport();
+blockPagePinchZoom();
 initScoreZoom();
 initSections();
 initMixer();
