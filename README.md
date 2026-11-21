@@ -25,6 +25,8 @@ Open **Tuning fork** for a steady reference pitch. It defaults to A4 at 440 Hz.
 
 Open **Pitch** and tap **Start listening** to check your own pitch through the microphone. It shows the nearest note, how many cents sharp or flat you are (within 10 cents counts as in tune), a trail of the last five seconds and the live waveform of your voice. It hears one voice or instrument at a time, so wear headphones if a song is playing. The microphone is only used in your browser and is released when you close the window.
 
+Note names everywhere (staff labels, the practice piano, the tuning fork and the pitch readout) follow the key signature at the playhead. Flat keys such as F, B♭ and E♭ show black keys as flats (B♭, E♭), and sharp keys such as G, D and A show them as sharps (F♯, C♯). C major, A minor and files without a key signature use sharps. If the song changes key, the names change as playback reaches the new key.
+
 The [standalone metronome](http://127.0.0.1:8000/metronome.html) also works without loading a song.
 
 ## Rehearse with an a cappella group
@@ -44,6 +46,8 @@ Turn on **Sustain** to keep notes sounding after you let go, so you can build a 
 Scroll horizontally to read the whole song on one continuous score. The arrows move the view by roughly one screen. Turn **Follow** off to browse independently during playback.
 
 Pinch the score to zoom in or out, between 40% and 300%. On a computer, pinch on the trackpad, hold Ctrl and scroll, or use the zoom slider and **−**/**+** buttons beside **Follow**. Click the percentage to return to 100%. The slider is hidden on phones, where pinching does the same job. Your zoom level is remembered in this browser. Pinching anywhere else does not zoom the page, so the controls stay where they are; keyboard zoom (Ctrl/⌘ with + or −) and your device's own zoom and text-size settings still work.
+
+Turn on **Scrub** to scrub through the song as you would in an audio or video editor: press anywhere on the score to move the playhead there and hear the notes under it, then drag sideways to keep scrubbing. Notes keep sounding while the playhead rests on them. Drag to either edge to scroll the score along. If the song was playing, it pauses while you scrub and carries on from where you let go. Shift-drag also moves the cue to where you let go. On a touch screen, sideways drags scrub, swiping up or down still scrolls, and pinching still zooms.
 
 MIDI files are engraved in the browser as grouped staves with connected barlines, beams, rests and ties. The display uses part names, key signatures, lyrics and rehearsal markers when the MIDI provides them. MIDI playback uses the original timing.
 

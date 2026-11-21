@@ -6,6 +6,7 @@ import { bundledSongs } from '../midi/repertoire';
 import { syncMetronome } from '../tools/metronome-window';
 import { whileBusy } from '../ui/loading';
 import { notify } from '../ui/toast';
+import { setCurrentKey } from './key';
 import { useMixFor } from './mixer';
 import { pausePlayback, resetBuses } from './playback';
 import { clearScore, renderScore, resetScoreView } from './score';
@@ -148,6 +149,7 @@ function clearSelection() {
   pausePlayback();
   resetBuses();
   studio.song = null;
+  setCurrentKey(null);
   studio.mix = [];
   studio.pos = studio.cue = 0;
   $('rows').innerHTML = '';
@@ -159,7 +161,7 @@ function clearSelection() {
   $('bars').textContent = 'Bar –';
 }
 
-const songControls = ['play', 'home', 'seek', 'rate', 'tempoBpm', 'loop', 'a', 'b', 'reset', 'all', 'startBar', 'cueHere', 'followScore'];
+const songControls = ['play', 'home', 'seek', 'rate', 'tempoBpm', 'loop', 'a', 'b', 'reset', 'all', 'startBar', 'cueHere', 'followScore', 'scrubScore'];
 
 function refreshLibrary() {
   if (!studio.song && studio.songs.length) selectSong(studio.songs[0]);
