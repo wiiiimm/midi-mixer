@@ -157,7 +157,7 @@ function clearSelection() {
   $('bars').textContent = 'Bar –';
 }
 
-const songControls = ['play', 'home', 'seek', 'rate', 'tempoBpm', 'loop', 'a', 'b', 'reset', 'all', 'startBar', 'cueHere', 'followScore'];
+const songControls = ['play', 'home', 'seek', 'rate', 'tempoBpm', 'loop', 'a', 'b', 'reset', 'all', 'startBar', 'cueHere', 'followScore', 'scrubScore'];
 
 function refreshLibrary() {
   if (!studio.song && studio.songs.length) selectSong(studio.songs[0]);

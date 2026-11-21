@@ -66,6 +66,7 @@ const pageFor = (bar: number) => Math.floor(bar / barsPerPage) * barsPerPage;
 const barWidth = () => (scoreWidth - scoreStart - rightMargin) / barsPerPage;
 const workspace = () => $('scorewrap').closest('.workspace')!;
 export const followEnabled = (): boolean => $('followScore').getAttribute('aria-pressed') === 'true';
+export const scrubEnabled = (): boolean => $('scrubScore').getAttribute('aria-pressed') === 'true';
 
 export function setEngraver(engraver: Engraver): void {
   engrave = engraver;
@@ -337,6 +338,44 @@ export function scorePointAt(clientX: number, clientY: number): {x: number; y: n
   return {x: (clientX - svg.left) / scoreZoom(), y: (clientY - svg.top) / scoreZoom()};
 }
 
+/**
+ * The beat under a screen x position, for scrubbing. Height is ignored and positions
+ * before the first bar or after the last are clamped to the start or end of the song.
+ */
+export function scoreBeatAtX(clientX: number): number | undefined {
+  const song = studio.song, view = engravedView;
+  if (!song) return;
+  if (!view) return fallbackBeatAt(song, clientX, true);
+  const svg = view.svg.getBoundingClientRect(), x = (clientX - svg.left) / scoreZoom();
+  const last = view.geometry.size - 1, first = view.geometry.get(0), final = view.geometry.get(last);
+  if (!first || !final) return;
+  if (x <= first.left) return song.bars[0].q;
+  if (x >= final.right) return song.bars[last + 1].q;
+  const bar = view.geometry.get(scoreBarAtX(x))!;
+  return interpolate(bar.anchors, Math.max(bar.left, x), 1);
+}
+
+/** The beat at a screen x on the fallback score's current page, or nothing left of the staves unless clamped. */
+function fallbackBeatAt(song: Song, clientX: number, clamp: boolean): number | undefined {
+  const rect = $('score').getBoundingClientRect();
+  if (!rect.width) return;
+  const x = (clientX - rect.left) / rect.width * scoreWidth;
+  if (x < scoreStart && !clamp) return;
+  const count = Math.min(barsPerPage, song.bars.length - 1 - page), w = barWidth();
+  const j = Math.min(count - 1, Math.max(0, Math.floor((x - scoreStart) / w)));
+  const start = song.bars[page + j].q, length = song.bars[page + j + 1].q - start;
+  const ratio = (x - scoreStart - j * w - 14) / (w - 20);
+  return start + Math.max(0, Math.min(clamp && j === count - 1 ? 1 : .999, ratio)) * length;
+}
+
+/** Scrolls the engraved score sideways by dx pixels; returns whether it moved. */
+export function scrollScoreBy(dx: number): boolean {
+  if (!engravedView) return false;
+  const scroller = viewport(), before = scroller.scrollLeft;
+  scroller.scrollLeft = before + dx;
+  return scroller.scrollLeft !== before;
+}
+
 type ZoomFocus = {clientX: number; clientY: number; point?: {x: number; y: number}};
 
 /** The middle of the visible score, used when zooming with the slider or buttons. */
@@ -404,9 +443,10 @@ export function initScore(seek: (seconds: number, setCue: boolean) => void): voi
     if (on && engravedView) revealPlayhead(engravedView.playheadX ?? 0);
   });
   // Click a note (or anywhere in a bar) to seek there; Shift-click also moves the cue.
+  // In scrub mode the pointer handlers in scrub.ts move the playhead instead.
   engravedScore().addEventListener('click', event => {
     const song = studio.song, view = engravedView;
-    if (!song || !view) return;
+    if (!song || !view || scrubEnabled()) return;
     const note = (event.target as Element).closest('.note, .chord');
     let beat = note ? view.timing.get(note.id)?.start : undefined;
     if (beat === undefined) {
@@ -420,13 +460,9 @@ export function initScore(seek: (seconds: number, setCue: boolean) => void): voi
   });
   $('score').addEventListener('click', event => {
     const song = studio.song;
-    if (!song) return;
-    const rect = $('score').getBoundingClientRect(), x = (event.clientX - rect.left) / rect.width * scoreWidth;
-    if (x < scoreStart) return;
-    const count = Math.min(barsPerPage, song.bars.length - 1 - page), w = barWidth();
-    const j = Math.min(count - 1, Math.max(0, Math.floor((x - scoreStart) / w)));
-    const start = song.bars[page + j].q, length = song.bars[page + j + 1].q - start;
-    onSeek(song.seconds(start + Math.max(0, Math.min(.999, (x - scoreStart - j * w - 14) / (w - 20))) * length), event.shiftKey);
+    if (!song || scrubEnabled()) return;
+    const beat = fallbackBeatAt(song, event.clientX, false);
+    if (beat !== undefined) onSeek(song.seconds(beat), event.shiftKey);
   });
 }
 

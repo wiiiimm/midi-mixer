@@ -4,7 +4,7 @@ import { $ } from '../lib/dom';
 import { shortcutsBlocked } from '../lib/shortcuts';
 import { octaveOf, sharpNames, trackColours } from '../lib/notes';
 import type { StoppableVoice } from '../lib/types';
-import { playable, playbackVoices } from '../studio/playback';
+import { playable, playbackVoices, scrubbing } from '../studio/playback';
 import { studio } from '../studio/state';
 
 // Sound-check piano: the full MIDI range in a horizontally scrolling keyboard,
@@ -79,7 +79,7 @@ export function initPiano(): void {
   let painted = new Map<number, string>();
   function paintPlayback() {
     const sounding = new Map<number, Set<number>>(), audio = currentAudio();
-    if (studio.playing && audio?.ctx.state === 'running') {
+    if ((studio.playing || scrubbing()) && audio?.ctx.state === 'running') {
       const now = audio.ctx.currentTime;
       for (const voice of playbackVoices()) {
         if (voice.start > now || voice.end <= now || !playable(voice.track) || studio.mix[voice.track].vol <= 0) continue;

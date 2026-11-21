@@ -1,5 +1,5 @@
 import { makeClick } from '../audio/click';
-import { currentAudio, enableAudio, scheduleSynthNote } from '../audio/engine';
+import { currentAudio, enableAudio, scheduleSynthNote, type AudioOutput } from '../audio/engine';
 import { isInstrumentReady, loadInstrument, playSample, whenInstrumentsReady } from '../audio/sampler';
 import { $ } from '../lib/dom';
 import type { Note, PlaybackVoice, Song } from '../lib/types';
@@ -53,6 +53,7 @@ function clearClicks() {
 
 export function stopNotes(): void {
   clearClicks();
+  scrubbed.clear();
   for (const voice of voices) {
     try { voice.stop(); } catch { /* already stopped */ }
   }
@@ -76,7 +77,7 @@ function forget(voice: PlaybackVoice) {
   if (index >= 0) voices.splice(index, 1);
 }
 
-function sound(track: number, note: Note, when: number, duration: number) {
+function sound(track: number, note: Note, when: number, duration: number): PlaybackVoice | undefined {
   const audio = currentAudio();
   if (duration <= 0 || !audio) return;
   const program = studio.mix[track].inst;
@@ -86,12 +87,13 @@ function sound(track: number, note: Note, when: number, duration: number) {
     const voice: PlaybackVoice = {...base, stop: sampled.stop};
     voices.push(voice);
     sampled.onended = () => forget(voice);
-    return;
+    return voice;
   }
   if (program < 128) loadInstrument(program); // synth now, samples next time
   const voice: PlaybackVoice = {...base, stop: () => synth.stop()};
   const synth = scheduleSynthNote(audio.ctx, program, note.p, note.v, when, duration, buses[track], () => forget(voice));
   voices.push(voice);
+  return voice;
 }
 
 function scheduleClicks(song: Song, from: number, to: number) {
@@ -165,6 +167,66 @@ function schedule() {
   scheduled = horizon;
 }
 
+function createBuses(audio: AudioOutput) {
+  if (buses.length) return;
+  buses = studio.mix.map(() => {
+    const bus = audio.ctx.createGain();
+    bus.connect(audio.master);
+    return bus;
+  });
+  applyGains();
+}
+
+// ── Scrubbing: the notes under the playhead sound while it is held there ──
+
+/** Notes sounding for the scrub, so each starts once and stops when the playhead leaves it. */
+const scrubbed = new Map<Note, PlaybackVoice | undefined>();
+/** The longest a held scrub note sounds, in seconds. */
+const scrubHold = 4;
+
+/** Starts audio for scrubbing (it must follow a user gesture). */
+export async function prepareScrub(): Promise<void> {
+  createBuses(await enableAudio());
+}
+
+/** Sounds the notes at song time `seconds`, stopping any the scrub has moved off. */
+export function scrubTo(seconds: number): void {
+  const song = studio.song, audio = currentAudio();
+  if (!song || !audio || !buses.length || studio.playing) return;
+  const now = audio.ctx.currentTime, here = new Set<Note>();
+  song.tracks.forEach((track, i) => {
+    if (!playable(i)) return;
+    for (const note of track.notes) {
+      if (note.s > seconds) break;
+      if (note.e <= seconds) continue;
+      here.add(note);
+      if (!scrubbed.has(note)) scrubbed.set(note, sound(i, note, now, Math.min(scrubHold, (note.e - seconds) / studio.rate)));
+    }
+  });
+  for (const [note, voice] of scrubbed) {
+    if (here.has(note)) continue;
+    if (voice) {
+      voice.stop(now);
+      voice.end = Math.min(voice.end, now); // unlight its piano key during the release
+    }
+    scrubbed.delete(note);
+  }
+}
+
+/** Whether a scrub is sounding notes (the piano lights these up too). */
+export const scrubbing = (): boolean => scrubbed.size > 0;
+
+/** Silences the scrub's notes. */
+export function endScrub(): void {
+  const now = currentAudio()?.ctx.currentTime ?? 0;
+  for (const voice of scrubbed.values()) {
+    if (!voice) continue;
+    try { voice.stop(); } catch { /* already stopped */ }
+    voice.end = Math.min(voice.end, now);
+  }
+  scrubbed.clear();
+}
+
 /** Waits (with the busy overlay) for this song's instrument samples, if any are missing. */
 async function ensureSounds() {
   const programs = studio.mix.map(m => m.inst).filter(p => p < 128 && !isInstrumentReady(p));
@@ -179,14 +241,7 @@ export async function startPlayback(): Promise<boolean> {
   await ensureSounds();
   // Abandon if a later play request or a pause superseded this one, or another song was picked.
   if (request !== startRequest || studio.song !== song || studio.playing) return false;
-  if (!buses.length) {
-    buses = studio.mix.map(() => {
-      const bus = audio.ctx.createGain();
-      bus.connect(audio.master);
-      return bus;
-    });
-    applyGains();
-  }
+  createBuses(audio);
   if (studio.pos >= song.duration) studio.pos = studio.cue;
   if (studio.looping) {
     const [a, b] = loopRange(song);
