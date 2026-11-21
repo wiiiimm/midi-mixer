@@ -56,7 +56,14 @@ dialog.floating .float-handle:active{cursor:grabbing}
   scrollbar-color: #8191a5 #edf1f6;
 }
 #scoreViewport:focus-visible { outline: 2px solid #007aff; outline-offset: -2px; }
-#engravedScore > svg { display: block; }
+#engravedScore > .score-layer { position: relative; width: max-content; transform-origin: 0 0; }
+.score-layer > svg { display: block; }
+/* Pinch zooms the score (see score-zoom.ts) instead of the page; one-finger panning still scrolls. */
+#scorewrap { touch-action: pan-x pan-y; }
+.zoom-control{display:flex;align-items:center;gap:3px}
+.zoom-control button{min-width:28px;padding-inline:6px;font-variant-numeric:tabular-nums}
+#zoomReset{min-width:50px}
+#scoreZoom{width:96px;margin:0 2px}
 #engravedScore .note, #engravedScore .chord { cursor: pointer; }
 #engravedScore .measure.score-current > .barLine { color: #007aff; }
 #engravedScore .note.score-current, #engravedScore .chord.score-current { color: #007aff; }
@@ -278,6 +285,7 @@ dialog.floating.front{border-color:#545458;box-shadow:0 18px 56px #000a}
   .view-tools .label{display:none}
   .view-tools button{min-width:38px;min-height:34px;justify-content:center}
   #keytoggle,#followScore{padding-inline:8px}
+  .zoom-control{display:none}
 }
 @media(max-width:440px){
   .transport{column-gap:6px;padding-inline:8px}

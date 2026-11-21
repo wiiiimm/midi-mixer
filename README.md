@@ -43,6 +43,8 @@ Turn on **Sustain** to keep notes sounding after you let go, so you can build a 
 
 Scroll horizontally to read the whole song on one continuous score. The arrows move the view by roughly one screen. Turn **Follow** off to browse independently during playback.
 
+Pinch the score to zoom in or out, between 40% and 300%. On a computer, pinch on the trackpad, hold Ctrl and scroll, or use the zoom slider and **−**/**+** buttons beside **Follow**. Click the percentage to return to 100%. The slider is hidden on phones, where pinching does the same job. Your zoom level is remembered in this browser.
+
 MIDI files are engraved in the browser as grouped staves with connected barlines, beams, rests and ties. The display uses part names, key signatures, lyrics and rehearsal markers when the MIDI provides them. MIDI playback uses the original timing.
 
 The PDFs in `reference/scores/` are kept outside the app’s public assets. The bundled **這裡** uses `here-from-score.mid`, which combines the original MIDI performance with verified part names, lyrics and rehearsal marks recovered from its PDF. The bundled **載我走** and **心的小島** also use MIDI files with lyrics and section marks recovered from their PDFs. **載我走** uses the printed opening tempo, and its scanned backing lyrics are partial. **心的小島** includes the four sung parts. The original exports are saved as `here.mid`, `carry-me.mid` and `heart-island.mid`. For a closer match, export MIDI with named tracks, key signatures and lyric events enabled. Exact editorial details such as dynamics, written repeats and enharmonic spelling are best preserved in MusicXML.
