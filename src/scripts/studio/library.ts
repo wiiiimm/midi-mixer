@@ -154,6 +154,7 @@ function clearSelection() {
   $('meta').textContent = 'Import a .mid file or restore the sample songs.';
   $('clock').textContent = '0:00 / 0:00';
   $('beatpos').textContent = '–';
+  $('bars').textContent = 'Bar –';
 }
 
 const songControls = ['play', 'home', 'seek', 'rate', 'tempoBpm', 'loop', 'a', 'b', 'reset', 'all', 'startBar', 'cueHere', 'followScore'];
