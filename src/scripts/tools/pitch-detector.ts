@@ -59,7 +59,7 @@ export function initPitchDetector(): void {
     panel.dataset.tone = tone;
     needle.style.left = 50 + Math.max(-50, Math.min(50, cents)) + '%';
     // Screen readers hear the note and verdict when either changes, at most once a second.
-    const now = performance.now(), key = note + tone + (tone === 'good' ? '' : cents < 0 ? 'flat' : 'sharp');
+    const now = performance.now(), key = spokenName(note) + tone + (tone === 'good' ? '' : cents < 0 ? 'flat' : 'sharp');
     if (key !== announced.key && now - announced.at > 1000) {
       announced = {key, at: now};
       $('pitchStatus').textContent = spokenName(note) + ', ' + $('pitchVerdict').textContent;
