@@ -77,6 +77,20 @@ export function detectPitch(samples: Float32Array, sampleRate: number,
   return hz >= minHz && hz <= maxHz ? {hz, clarity} : null;
 }
 
+/**
+ * Averages each run of `factor` samples into `out`, a cheap low-pass and downsample.
+ * Detection cost grows with the square of the sample rate, so high-rate devices
+ * (88.2–192 kHz) are brought back to about 48 kHz first; voices sit far below that Nyquist.
+ */
+export function decimate(samples: Float32Array, factor: number, out: Float32Array): Float32Array {
+  for (let i = 0; i < out.length; i++) {
+    let sum = 0;
+    for (let j = i * factor, end = j + factor; j < end; j++) sum += samples[j];
+    out[i] = sum / factor;
+  }
+  return out;
+}
+
 /** Continuous MIDI pitch (69 = A4) for a frequency. */
 export const midiOf = (hz: number, a4 = 440): number => 69 + 12 * Math.log2(hz / a4);
 

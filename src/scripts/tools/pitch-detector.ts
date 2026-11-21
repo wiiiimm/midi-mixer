@@ -1,7 +1,7 @@
 import { enableAudio } from '../audio/engine';
 import { $ } from '../lib/dom';
 import { octaveOf, sharpNames } from '../lib/notes';
-import { detectPitch, median, midiOf, nearestNote } from '../lib/pitch';
+import { decimate, detectPitch, median, midiOf, nearestNote } from '../lib/pitch';
 import { registerFloatingWindow } from '../ui/floating-windows';
 
 // Pitch detector: listens through the microphone and shows the nearest note, how many
@@ -127,11 +127,11 @@ export function initPitchDetector(): void {
     g.stroke();
   }
 
-  function tick(samples: Float32Array<ArrayBuffer>) {
+  function tick(samples: Float32Array<ArrayBuffer>, factor: number, reduced: Float32Array) {
     if (!active) return;
     active.analyser.getFloatTimeDomainData(samples);
-    const now = performance.now();
-    const reading = detectPitch(samples, active.analyser.context.sampleRate);
+    const now = performance.now(), rate = active.analyser.context.sampleRate;
+    const reading = detectPitch(factor > 1 ? decimate(samples, factor, reduced) : samples, rate / factor);
     let midi: number | null = null;
     if (reading) {
       const raw = midiOf(reading.hz);
@@ -145,8 +145,8 @@ export function initPitchDetector(): void {
     trail.push({t: now, midi});
     if (midi !== null || now - lastHeard > SILENCE_MS) showReading(midi);
     drawTrail(now);
-    drawWave(samples, reading?.hz ?? null, active.analyser.context.sampleRate, midi === null ? null : toneOf(nearestNote(midi).cents));
-    active.frame = requestAnimationFrame(() => tick(samples));
+    drawWave(samples, reading?.hz ?? null, rate, midi === null ? null : toneOf(nearestNote(midi).cents));
+    active.frame = requestAnimationFrame(() => tick(samples, factor, reduced));
   }
 
   function stop() {
@@ -189,7 +189,9 @@ export function initPitchDetector(): void {
       listen.textContent = 'Stop listening';
       panel.classList.add('listening');
       showReading(null);
-      tick(new Float32Array(analyser.fftSize));
+      // Detect at about 48 kHz whatever the device rate, so the per-frame cost stays ~2 ms.
+      const factor = Math.max(1, Math.round(ctx.sampleRate / 48000));
+      tick(new Float32Array(analyser.fftSize), factor, new Float32Array(analyser.fftSize / factor));
     } catch (error) {
       if (request !== generation) return;
       const name = error instanceof DOMException ? error.name : '';
