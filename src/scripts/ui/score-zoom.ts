@@ -51,7 +51,8 @@ export function initScoreZoom(): void {
 
   // Two-finger pinch. The score point first under the fingers stays under them,
   // so moving both fingers pans while pinching.
-  let pinch: {distance: number; zoom: number; point: {x: number; y: number}; focus?: Focus} | undefined;
+  // The fallback score has no score point; its pinch zooms without one.
+  let pinch: {distance: number; zoom: number; point?: {x: number; y: number}; focus?: Focus} | undefined;
   const middle = (touches: TouchList) => ({
     clientX: (touches[0].clientX + touches[1].clientX) / 2,
     clientY: (touches[0].clientY + touches[1].clientY) / 2,
@@ -60,7 +61,7 @@ export function initScoreZoom(): void {
   area.addEventListener('touchstart', event => {
     if (event.touches.length !== 2) return;
     const {clientX, clientY} = middle(event.touches), point = scorePointAt(clientX, clientY);
-    pinch = point && {distance: spread(event.touches) || 1, zoom: scoreZoom(), point};
+    pinch = {distance: spread(event.touches) || 1, zoom: scoreZoom(), point};
   }, {passive: true});
   area.addEventListener('touchmove', event => {
     if (!pinch || event.touches.length !== 2) return;

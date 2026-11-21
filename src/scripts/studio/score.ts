@@ -112,9 +112,12 @@ function renderEngraved(song: Song, mode: StaffLabelMode, engraver: Engraver) {
   const previous = engravedView?.song === song ? engravedView : undefined;
   const scroll = scroller.scrollLeft;
   const index = previous ? scoreBarAtX(scroll / zoom) : 0;
-  const offset = previous ? scroll - previous.geometry.get(index)!.left * zoom : 0;
-  const {svg, measures, timing} = engraver(song, mode);
+  const offset = previous ? (scroll - previous.geometry.get(index)!.left * zoom) * liveScale : 0;
+  // Commit any live zoom still waiting to settle, so its focus point isn't applied to the new layout.
+  clearTimeout(liveTimer);
+  zoom = clampZoom(zoom * liveScale);
   liveScale = 1;
+  const {svg, measures, timing} = engraver(song, mode);
   host.innerHTML = '<div class="score-layer">' + svg + '</div>';
   const layer = host.firstElementChild as HTMLElement, notation = layer.querySelector('svg')!;
   $('engravedTitle').textContent = song.title;
@@ -355,6 +358,7 @@ export function setScoreZoom(next: number, focus?: ZoomFocus, live = false): voi
   const value = clampZoom(next), view = engravedView;
   clearTimeout(liveTimer);
   if (!view) {
+    liveScale = 1;
     zoom = value;
     scoreWidth = 0;
     fitScore();
@@ -409,7 +413,7 @@ export function initScore(seek: (seconds: number, setCue: boolean) => void): voi
     let beat = note ? view.timing.get(note.id)?.start : undefined;
     if (beat === undefined) {
       const svg = view.svg.getBoundingClientRect();
-      const x = (event.clientX - svg.left) / zoom, y = (event.clientY - svg.top) / zoom;
+      const x = (event.clientX - svg.left) / scoreZoom(), y = (event.clientY - svg.top) / scoreZoom();
       const bar = view.geometry.get(scoreBarAtX(x));
       if (!bar || x < bar.left || x > bar.right || y < bar.top || y > bar.top + bar.height) return;
       beat = interpolate(bar.anchors, x, 1);
@@ -585,7 +589,8 @@ function renderFallback(song: Song) {
   const h = top - 20;
   svg.setAttribute('viewBox', '0 0 ' + scoreWidth + ' ' + h);
   svg.setAttribute('preserveAspectRatio', 'xMinYMin meet');
-  svg.style.height = h + 'px';
+  // Scale the height with the zoom too, or `meet` would cap the drawn scale at 1.
+  svg.style.height = h * zoom + 'px';
   svg.innerHTML = '<rect width="100%" height="' + h + '" fill="#f5f8fb"/>' + connectors + s +
     '<g id="cueCursor" pointer-events="none"><rect y="5" width="27" height="13" rx="2" fill="#a7410b"/><text x="3" y="15" fill="white" font-size="9">Cue</text><path d="M0 18V' + (h - 10) + '" stroke="#ca5a19" stroke-dasharray="3 3"/></g>' +
     '<g id="cursor" pointer-events="none"><path d="M-4 25h8l-4 6z" fill="#00ad81"/>' + line(0, 30, 0, h - 10, '#00ad81', 1.5) + '</g>';
