@@ -9,6 +9,11 @@ import { barAt, studio } from './state';
 // The score: an engraved Verovio rendering in a horizontally scrolling viewport,
 // with a lightweight SVG "rehearsal score" (paged) as the fallback if engraving
 // is unavailable. Both show a playhead and the start cue, and clicking seeks.
+//
+// Zoom: bar geometry is kept in score units (the engraving at 100%). Re-laying out the
+// SVG at a new size keeps the notation sharp but takes a few frames for a long song, so
+// while a pinch or slider drag is under way the score is only scaled with a CSS
+// transform, and it is laid out at the new size once the gesture settles.
 
 interface BarGeometry {
   left: number; right: number; top: number; height: number;
@@ -19,6 +24,13 @@ interface BarGeometry {
 }
 interface EngravedView {
   song: Song;
+  svg: SVGSVGElement;
+  /** Unzoomed size of the engraving. */
+  width: number; height: number;
+  /** The element that holds the SVG and markers, scaled during a live zoom. */
+  layer: HTMLElement;
+  /** Where the SVG sits inside the layer, in pixels. */
+  origin: {x: number; y: number};
   mode: StaffLabelMode;
   measures: Map<string, number>;
   timing: Map<string, {start: number; end: number}>;
@@ -26,20 +38,33 @@ interface EngravedView {
   geometry: Map<number, BarGeometry>;
   cueMarker: HTMLElement;
   playheadMarker: HTMLElement;
+  /** Playhead position in score units. */
   playheadX?: number;
 }
+
+export const minZoom = .4, maxZoom = 3;
+const clampZoom = (value: number) => Math.min(maxZoom, Math.max(minZoom, value));
 
 const scoreStart = 69, rightMargin = 14;
 let engrave: Engraver | null = null;
 let engravedView: EngravedView | undefined;
 let scoreWidth = 0, barsPerPage = 4, page = 0;
 let onSeek: (seconds: number, setCue: boolean) => void = () => {};
+let zoom = clampZoom(Number(readStored('scoreZoom')) || 1);
+/** Extra scale shown during a live zoom, on top of the laid-out zoom. */
+let liveScale = 1, liveTimer = 0;
+let onZoom: (zoom: number) => void = () => {};
+
+function readStored(key: string) {
+  try { return localStorage.getItem(key); } catch { return null; }
+}
 
 const engravedScore = () => $('engravedScore');
 const viewport = () => $('scoreViewport');
 const staffMode = () => $<HTMLSelectElement>('staffLabels').value as StaffLabelMode;
 const pageFor = (bar: number) => Math.floor(bar / barsPerPage) * barsPerPage;
 const barWidth = () => (scoreWidth - scoreStart - rightMargin) / barsPerPage;
+const workspace = () => $('scorewrap').closest('.workspace')!;
 export const followEnabled = (): boolean => $('followScore').getAttribute('aria-pressed') === 'true';
 
 export function setEngraver(engraver: Engraver): void {
@@ -49,7 +74,8 @@ export function setEngraver(engraver: Engraver): void {
 }
 
 function fitScore() {
-  const width = Math.round($('scorewrap').getBoundingClientRect().width);
+  // The fallback score is drawn this many units wide and stretched to fit, which zooms it.
+  const width = Math.round($('scorewrap').getBoundingClientRect().width / zoom);
   if (!width || width === scoreWidth) return;
   scoreWidth = width;
   barsPerPage = Math.max(1, Math.floor((width - scoreStart - rightMargin) / 200));
@@ -85,31 +111,40 @@ function renderEngraved(song: Song, mode: StaffLabelMode, engraver: Engraver) {
   const host = engravedScore(), scroller = viewport();
   const previous = engravedView?.song === song ? engravedView : undefined;
   const scroll = scroller.scrollLeft;
-  const index = previous ? scoreBarAtX(scroll) : 0;
-  const offset = previous ? scroll - previous.geometry.get(index)!.left : 0;
+  const index = previous ? scoreBarAtX(scroll / zoom) : 0;
+  const offset = previous ? scroll - previous.geometry.get(index)!.left * zoom : 0;
   const {svg, measures, timing} = engraver(song, mode);
-  host.innerHTML = svg;
-  const notation = host.querySelector('svg')!;
-  notation.setAttribute('width', String(notation.viewBox.baseVal.width));
-  notation.setAttribute('height', String(notation.viewBox.baseVal.height));
+  liveScale = 1;
+  host.innerHTML = '<div class="score-layer">' + svg + '</div>';
+  const layer = host.firstElementChild as HTMLElement, notation = layer.querySelector('svg')!;
   $('engravedTitle').textContent = song.title;
   $('engravedTitle').hidden = false;
   scroller.hidden = false;
   $('score').setAttribute('hidden', '');
-  host.insertAdjacentHTML('beforeend',
+  layer.insertAdjacentHTML('beforeend',
     '<div class="score-position cue-marker" aria-hidden="true" hidden><span>Cue</span></div>' +
     '<div class="score-position playhead-marker" aria-hidden="true" hidden></div>');
   engravedView = {
     song, mode, measures, timing, active: new Set(), geometry: new Map(),
-    cueMarker: host.querySelector('.cue-marker')!, playheadMarker: host.querySelector('.playhead-marker')!,
+    svg: notation, width: notation.viewBox.baseVal.width, height: notation.viewBox.baseVal.height, origin: {x: 0, y: 0},
+    layer, cueMarker: layer.querySelector('.cue-marker')!, playheadMarker: layer.querySelector('.playhead-marker')!,
   };
+  sizeEngraving(engravedView);
   cacheScorePositions(engravedView, song);
-  scroller.scrollLeft = previous ? engravedView.geometry.get(index)!.left + offset : 0;
+  scroller.scrollLeft = previous ? engravedView.geometry.get(index)!.left * zoom + offset : 0;
   updateCursor();
   if (!previous && studio.pos > 0) revealPlayhead(engravedView.playheadX ?? 0);
   updateVisibleBars();
 }
 
+function sizeEngraving(view: EngravedView) {
+  view.svg.setAttribute('width', String(view.width * zoom));
+  view.svg.setAttribute('height', String(view.height * zoom));
+  const svg = view.svg.getBoundingClientRect(), layer = view.layer.getBoundingClientRect();
+  view.origin = {x: svg.left - layer.left, y: svg.top - layer.top};
+}
+
+/** Finds the bar at x, in score units. */
 function scoreBarAtX(x: number): number {
   const geometry = engravedView!.geometry;
   let low = 0, high = geometry.size - 1;
@@ -123,15 +158,16 @@ function scoreBarAtX(x: number): number {
 function updateVisibleBars() {
   if (!engravedView) return;
   const {scrollLeft, clientWidth, scrollWidth} = viewport();
-  const first = scoreBarAtX(scrollLeft + 1) + 1;
-  const last = scoreBarAtX(scrollLeft + clientWidth - 1) + 1;
+  const first = scoreBarAtX((scrollLeft + 1) / zoom) + 1;
+  const last = scoreBarAtX((scrollLeft + clientWidth - 1) / zoom) + 1;
   $('bars').textContent = first === last ? 'Bar ' + first : 'Bars ' + first + '–' + last;
   $<HTMLButtonElement>('prev').disabled = scrollLeft < 1;
   $<HTMLButtonElement>('next').disabled = scrollLeft + clientWidth >= scrollWidth - 1;
 }
 
-function revealPlayhead(x: number, cancelPan = false) {
-  const scroller = viewport();
+/** Scrolls so x (in score units) is in view. */
+function revealPlayhead(units: number, cancelPan = false) {
+  const scroller = viewport(), x = units * zoom;
   const {scrollLeft, clientWidth} = scroller;
   const margin = Math.min(70, clientWidth * .15);
   const outside = x < scrollLeft || x > scrollLeft + clientWidth - margin;
@@ -142,14 +178,17 @@ function revealPlayhead(x: number, cancelPan = false) {
 }
 
 function cacheScorePositions(view: EngravedView, song: Song) {
-  const host = engravedScore().getBoundingClientRect();
+  // Measured on screen, then stored relative to the SVG at 100%.
+  const svg = view.svg.getBoundingClientRect();
+  const host = {left: svg.left, top: svg.top, scale: zoom};
+  const unit = (value: number) => value / host.scale;
   for (const [id, index] of view.measures) {
     const measure = $(id);
     const rect = measure.getBoundingClientRect();
     const firstLine = measure.querySelector('.staff > path')?.getBoundingClientRect() ?? rect;
     view.geometry.set(index, {
-      left: firstLine.left - host.left, right: firstLine.right - host.left,
-      top: rect.top - host.top, height: rect.height, onsets: new Map(), notes: [], anchors: [],
+      left: unit(firstLine.left - host.left), right: unit(firstLine.right - host.left),
+      top: unit(rect.top - host.top), height: unit(rect.height), onsets: new Map(), notes: [], anchors: [],
     });
   }
   for (const [id, {start, end}] of view.timing) {
@@ -161,7 +200,7 @@ function cacheScorePositions(view: EngravedView, song: Song) {
     bar.notes.push({id, start, end});
     if (!head || bar.onsets.has(start)) continue;
     const {left, width} = head.getBoundingClientRect();
-    bar.onsets.set(start, left + width / 2 - host.left);
+    bar.onsets.set(start, unit(left + width / 2 - host.left));
   }
   for (const [index, bar] of view.geometry) {
     bar.anchors = [[song.bars[index].q, bar.left + 2] as [number, number], ...bar.onsets].sort(([a], [b]) => a - b);
@@ -192,8 +231,8 @@ function positionMarker(view: EngravedView, song: Song, marker: HTMLElement, bea
   marker.hidden = !bar;
   if (!bar) return;
   const x = interpolate(bar.anchors, beat, 0);
-  marker.style.transform = 'translate(' + (x + offset) + 'px,' + bar.top + 'px)';
-  marker.style.height = bar.height + 'px';
+  marker.style.transform = 'translate(' + (view.origin.x + x * zoom + offset) + 'px,' + (view.origin.y + bar.top * zoom) + 'px)';
+  marker.style.height = bar.height * zoom + 'px';
   return x;
 }
 
@@ -281,6 +320,73 @@ function moveScore(direction: number) {
   renderScore();
 }
 
+/** The zoom level on screen, including any live zoom in progress. */
+export const scoreZoom = (): number => zoom * liveScale;
+
+/** Calls back with the zoom level whenever it changes. */
+export function onScoreZoom(listener: (zoom: number) => void): void {
+  onZoom = listener;
+  listener(zoom);
+}
+
+/** Where a screen point falls on the engraving, in score units. */
+export function scorePointAt(clientX: number, clientY: number): {x: number; y: number} | undefined {
+  if (!engravedView) return;
+  const svg = engravedView.svg.getBoundingClientRect();
+  return {x: (clientX - svg.left) / scoreZoom(), y: (clientY - svg.top) / scoreZoom()};
+}
+
+type ZoomFocus = {clientX: number; clientY: number; point?: {x: number; y: number}};
+
+/** The middle of the visible score, used when zooming with the slider or buttons. */
+function visibleMiddle(): ZoomFocus {
+  const box = viewport().getBoundingClientRect();
+  return {clientX: box.left + box.width / 2, clientY: (Math.max(box.top, 0) + Math.min(box.bottom, innerHeight)) / 2};
+}
+
+let saveTimer = 0;
+/**
+ * Zooms the score. The score point under (clientX, clientY), or the given point, ends
+ * up at (clientX, clientY), so pinching zooms around the fingers and follows them.
+ * Without a focus it zooms around the middle of the visible score. A live zoom only
+ * scales what is already drawn; it is laid out properly when `live` stops arriving.
+ */
+export function setScoreZoom(next: number, focus?: ZoomFocus, live = false): void {
+  const value = clampZoom(next), view = engravedView;
+  clearTimeout(liveTimer);
+  if (!view) {
+    zoom = value;
+    scoreWidth = 0;
+    fitScore();
+  } else {
+    const {clientX, clientY} = focus ?? visibleMiddle();
+    const point = focus?.point ?? scorePointAt(clientX, clientY)!;
+    if (live) {
+      // Scale the layer from its top-left corner, then shift it so the point stays put.
+      liveScale = value / zoom;
+      const host = engravedScore().getBoundingClientRect();
+      const left = host.left + view.layer.offsetLeft, top = host.top + view.layer.offsetTop;
+      const x = clientX - left - liveScale * (view.origin.x + point.x * zoom);
+      const y = clientY - top - liveScale * (view.origin.y + point.y * zoom);
+      view.layer.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + liveScale + ')';
+      liveTimer = window.setTimeout(() => setScoreZoom(value, {clientX, clientY, point}), 160);
+    } else {
+      liveScale = 1;
+      view.layer.style.transform = '';
+      zoom = value;
+      sizeEngraving(view);
+      const svg = view.svg.getBoundingClientRect(), scroller = viewport();
+      scroller.scrollLeft += svg.left + point.x * zoom - clientX;
+      workspace().scrollTop += svg.top + point.y * zoom - clientY;
+      updateCursor();
+      updateVisibleBars();
+    }
+  }
+  onZoom(value);
+  clearTimeout(saveTimer);
+  saveTimer = window.setTimeout(() => { try { localStorage.setItem('scoreZoom', String(value)); } catch { /* not saved */ } }, 300);
+}
+
 export function initScore(seek: (seconds: number, setCue: boolean) => void): void {
   onSeek = seek;
   new ResizeObserver(fitScore).observe($('scorewrap'));
@@ -302,8 +408,8 @@ export function initScore(seek: (seconds: number, setCue: boolean) => void): voi
     const note = (event.target as Element).closest('.note, .chord');
     let beat = note ? view.timing.get(note.id)?.start : undefined;
     if (beat === undefined) {
-      const host = engravedScore().getBoundingClientRect();
-      const x = event.clientX - host.left, y = event.clientY - host.top;
+      const svg = view.svg.getBoundingClientRect();
+      const x = (event.clientX - svg.left) / zoom, y = (event.clientY - svg.top) / zoom;
       const bar = view.geometry.get(scoreBarAtX(x));
       if (!bar || x < bar.left || x > bar.right || y < bar.top || y > bar.top + bar.height) return;
       beat = interpolate(bar.anchors, x, 1);

@@ -2,6 +2,7 @@
 // a fixed order, so there are no import-time side effects to reason about.
 import { initShortcuts } from './lib/shortcuts';
 import { initPwa } from './ui/pwa';
+import { initScoreZoom } from './ui/score-zoom';
 import { initBrand, playBrandScale } from './ui/brand';
 import { initFloatingWindows } from './ui/floating-windows';
 import { initInstrumentPicker } from './ui/instrument-picker';
@@ -22,6 +23,7 @@ initLoading();
 initFloatingWindows();
 initPlayback();
 initTransport();
+initScoreZoom();
 initSections();
 initMixer();
 initLibrary();
