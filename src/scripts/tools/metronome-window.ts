@@ -31,11 +31,15 @@ function currentBpm(): number | null {
   return song ? startingBpm(song) : null;
 }
 
+function sendBpm() {
+  const bpm = currentBpm();
+  if (bpm !== null) frame?.contentWindow?.postMessage({type: 'metronome-set-bpm', bpm}, location.origin);
+}
+
 /** Called when a song becomes current: drops any hand-set tempo and retunes an open metronome. */
 export function syncMetronome(song: Song): void {
   if (manual?.song !== song) manual = null;
-  const bpm = currentBpm();
-  if (bpm !== null) frame?.contentWindow?.postMessage({type: 'metronome-set-bpm', bpm}, location.origin);
+  sendBpm();
 }
 
 export function initMetronomeWindow(): void {
@@ -48,6 +52,8 @@ export function initMetronomeWindow(): void {
       frame.title = 'Metronome controls';
       const bpm = currentBpm();
       frame.src = './metronome.html?embedded' + (bpm === null ? '' : '&bpm=' + bpm);
+      // A song picked while the page is still loading would miss the message, so resend once it has loaded.
+      frame.addEventListener('load', sendBpm, {once: true});
       body.append(frame);
     },
     onClose() { body.replaceChildren(); frame = null; },
