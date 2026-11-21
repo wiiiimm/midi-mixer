@@ -66,7 +66,10 @@ dialog.floating .float-handle:active{cursor:grabbing}
 #scoreZoom{width:96px;margin:0 2px}
 #engravedScore .note, #engravedScore .chord { cursor: pointer; }
 #engravedScore .measure.score-current > .barLine { color: #007aff; }
-#engravedScore .note.score-current, #engravedScore .chord.score-current { color: #007aff; }
+/* Verovio strokes stems with currentColor but leaves glyphs (heads, flags, accidentals) and
+   augmentation dots at the default black fill, so set both to colour the whole sounding note. */
+#engravedScore .note.score-current, #engravedScore .chord.score-current { color: #007aff; fill: #007aff; }
+#engravedScore .score-current .verse { fill: initial; } /* lyrics stay black */
 #engravedScore .measure, #engravedScore .note, #engravedScore .chord { pointer-events: bounding-box; }
 
 .sidebar-footer { margin-top: auto; }
