@@ -317,12 +317,14 @@ function addAt(clientX: number, clientY: number) {
 /** Note input from the piano: adds the played pitch straight after the selected note and selects it. */
 function addAfterSelected(pitch: number) {
   const song = studio.song, first = selectedHit();
-  if (!song || !first || studio.playing) return;
+  // The piano runs past the top of the MIDI range, which a saved edit can't hold.
+  if (!song || !first || studio.playing || pitch < 0 || pitch > 127) return;
   const last = scoreNoteFromSource(selected[selected.length - 1]) ?? first;
   const track = writtenTracks(song)[last.track];
   if (track.inst === DRUM_KIT) return;
-  // Notes from a MIDI file rarely end exactly on the beat, so start on the nearest semiquaver.
-  const q = Math.max(Math.round((last.note.q + last.note.len) * 4) / 4, last.note.q + .25);
+  // Notes from a MIDI file rarely end exactly on the beat, so start on the nearest demisemiquaver
+  // (fine enough for a dotted semiquaver's end).
+  const q = Math.max(Math.round((last.note.q + last.note.len) * 8) / 8, last.note.q + .125);
   const existing = track.notes.find(note => same(note.q, q) && note.p === pitch);
   if (existing?.src) select(existing.src);
   else {
