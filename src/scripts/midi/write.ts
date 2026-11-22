@@ -90,7 +90,11 @@ export function writeMidi(song: Song): Uint8Array<ArrayBuffer> {
     for (const note of track.notes) {
       const start = tick(note.q);
       if (note.lyric) events.push(meta(start, 5, text(note.lyric), 2));
-      for (const cue of note.lyricCues ?? []) events.push(meta(tick(cue.q), 5, text(cue.text), 2));
+      // A syllable sung part-way through a note is only drawn while the note lasts that long, so a note
+      // that was shortened past it doesn't export it either.
+      for (const cue of note.lyricCues ?? []) {
+        if (cue.q < note.q + note.len) events.push(meta(tick(cue.q), 5, text(cue.text), 2));
+      }
       const written = ends.get(note);
       if (written === undefined) continue;
       const end = Math.max(start + 1, written);
