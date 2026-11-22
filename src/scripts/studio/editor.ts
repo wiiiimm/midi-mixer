@@ -200,7 +200,9 @@ function addAt(clientX: number, clientY: number) {
   }
   const bar = song.bars[staff.bar], end = song.bars[staff.bar + 1].q, length = lengthChoice();
   const grid = Math.min(length, 4 / bar.d);
-  const q = Math.min(end - grid, Math.max(bar.q, bar.q + Math.round((staff.beat - bar.q) / grid) * grid));
+  // Snap to a grid position inside the bar, even when the last bar is short or ends off the grid.
+  const slots = Math.max(1, Math.floor((end - bar.q) / grid + 1e-6));
+  const q = bar.q + Math.min(slots - 1, Math.max(0, Math.round((staff.beat - bar.q) / grid))) * grid;
   const sf = song.keyAt(q).sf, topLine = usesBassClef(track) ? 26 : 38; // A3 or F5
   const pitch = pitchAtStep(topLine + staff.offset, sf);
   const existing = track.notes.find(note => Math.abs(note.q - q) < 1e-6 && note.p === pitch);
