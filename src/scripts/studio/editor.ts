@@ -13,7 +13,7 @@ import { originalSong, replaceSong, saveAsNewSong } from './library';
 import { downloadMidi } from '../midi/write';
 import { previewNote, restart } from './playback';
 import {
-  editEnabled, onScoreRendered, renderScore, scoreEngraved, scoreNoteElements, scoreNoteFromSource, scoreNoteNear,
+  editEnabled, onScoreRendered, renderScore, scoreEngraved, scoreNoteElements, scoreNoteAtLyric, scoreNoteFromSource, scoreNoteNear,
   scoreStaffAt, scoreXAtBeat, scrollScoreBy, scrubEnabled, type ScoreNoteHit,
 } from './score';
 import { renderSections } from './sections';
@@ -56,6 +56,8 @@ interface Gesture {
   /** Staff line distance in pixels, for turning a drag into scale steps. */
   spacing: number;
   moved: boolean;
+  /** The press is on a lyric: a tap edits it in place. */
+  lyric?: boolean;
   /** What a drag that started on a note does: up or down changes pitch, sideways draws a tie or slur. */
   mode?: 'pitch' | 'curve';
   steps: number;
@@ -235,16 +237,78 @@ function refreshControls() {
 const lyricInput = () => $<HTMLInputElement>('editLyric');
 /** The edit note whose lyric the field holds: the first note of the selection. */
 let lyricNote: number | undefined;
+/** Whether the lyric is being edited, in a field that sits on the score where the lyric is drawn. */
+let lyricOpen = false;
 
-/** Puts the selected note's lyric in the Lyric field, unless it is being typed in for that same note. */
+/** Keeps the Lyric field on the selected note's lyric, unless that same note's is being typed in. */
 function showLyric(hit: ScoreNoteHit | undefined) {
   const input = lyricInput(), id = hit ? selected[0] : undefined;
-  const lyric = id === undefined ? '' : studio.song?.edits ? findNote(studio.song.edits, id)?.note.lyric ?? '' : hit!.note.lyric ?? '';
-  input.disabled = id === undefined;
-  if (id === lyricNote && document.activeElement === input) return;
-  lyricNote = id;
-  input.value = lyric;
-  input.dataset.saved = lyric;
+  button('editLyricOpen').disabled = id === undefined;
+  if (!lyricOpen) return;
+  if (!hit || id === undefined) { closeLyric(); return; }
+  if (id !== lyricNote) {
+    const lyric = studio.song?.edits ? findNote(studio.song.edits, id)?.note.lyric ?? '' : hit.note.lyric ?? '';
+    lyricNote = id;
+    input.value = lyric;
+    input.dataset.saved = lyric;
+  }
+  placeLyric(hit);
+}
+
+/** Puts the Lyric field over the note's lyric on the score, or where one would be drawn. */
+function placeLyric(hit: ScoreNoteHit) {
+  const element = scoreNoteElements(hit.note)[0], head = element?.querySelector('.notehead')?.getBoundingClientRect();
+  if (!element || !head) return;
+  const verse = element.querySelector('.verse') ?? element.closest('.chord')?.querySelector('.verse');
+  let box = verse?.getBoundingClientRect();
+  if (!box) {
+    // No lyric yet: line up with the lyrics of the same staff in this system, or sit just under the staff.
+    const staff = element.closest('.staff'), measure = element.closest('.measure');
+    const index = staff && measure ? [...measure.querySelectorAll(':scope > .staff')].indexOf(staff) : -1;
+    for (const other of element.closest('.system')?.querySelectorAll('.measure') ?? []) {
+      const line = other.querySelectorAll(':scope > .staff')[index]?.querySelector('.verse')?.getBoundingClientRect();
+      if (line) { box = new DOMRect(head.left, line.top, 0, line.height); break; }
+    }
+    box ??= new DOMRect(head.left, (staff?.getBoundingClientRect().bottom ?? head.bottom) + 6, 0, 18);
+  }
+  const input = lyricInput(), holder = $('editLyricBox'), view = $('scoreViewport'), frame = view.getBoundingClientRect();
+  // At least 16px, so a phone doesn't zoom the page in to the field.
+  input.style.fontSize = Math.max(16, Math.min(30, box.height * .8)) + 'px';
+  sizeLyric();
+  holder.style.left = box.left - frame.left + view.scrollLeft - 7 + 'px';
+  holder.style.top = box.top + box.height / 2 - frame.top + view.scrollTop - holder.offsetHeight / 2 + 'px';
+}
+
+/** Fits the Lyric field to its text. */
+function sizeLyric() {
+  const input = lyricInput();
+  let width = 2;
+  for (const character of input.value) width += character.charCodeAt(0) > 0x2e7f ? 2 : 1.1;
+  input.style.width = Math.max(4, width) + 'ch';
+}
+
+/** Starts editing the selected note's lyric, in place on the score. */
+function openLyric() {
+  const hit = selectedHit(), input = lyricInput();
+  if (!hit) return;
+  lyricOpen = true;
+  lyricNote = undefined;
+  $('editLyricBox').hidden = false;
+  showLyric(hit);
+  input.focus({preventScroll: true});
+  input.select();
+  revealSelected();
+}
+
+/** Saves the lyric being typed and puts the field away. */
+function closeLyric() {
+  if (!lyricOpen) return;
+  lyricOpen = false;
+  const typing = document.activeElement === lyricInput();
+  commitLyric();
+  lyricNote = undefined;
+  $('editLyricBox').hidden = true;
+  if (typing) $('scoreViewport').focus({preventScroll: true});
 }
 
 /** Saves what was typed in the Lyric field to its note; an empty text removes the lyric. */
@@ -262,7 +326,6 @@ function nextLyric(step: number) {
   // A chord shares one syllable, so move on past its other notes.
   const next = neighbour(step, true);
   if (!next) return;
-  lyricNote = undefined;
   selectHit(next, false);
   lyricInput().select();
 }
@@ -316,7 +379,7 @@ function setEditing(on: boolean) {
   cancelGesture();
   hideGhost();
   $<HTMLDetailsElement>('editMenu').open = false;
-  if (!on) select([]);
+  if (!on) { closeLyric(); select([]); }
   refreshControls();
 }
 
@@ -668,6 +731,11 @@ function finishGesture(event: PointerEvent) {
   if (!ended || event.pointerId !== ended.pointer) return;
   if (!ended.moved) {
     cancelGesture();
+    if (ended.lyric && ended.hit?.note.src && !linking) {
+      select(withTies(ended.hit.note.src));
+      openLyric();
+      return;
+    }
     // Without Note input a tap near a note selects it; with it, a tap beside a note adds one there.
     const onNote = ended.hit && (linking || !noteInput ||
       tappedNote(ended.hit, event.clientX, event.clientY, ended.spacing, event.pointerType === 'touch'));
@@ -729,7 +797,12 @@ export function initEditor(): void {
     if (menu.open && !menu.contains(event.target as Node)) menu.open = false;
   });
   const lyric = lyricInput();
-  lyric.addEventListener('change', commitLyric);
+  $('scoreViewport').append($('editLyricBox'));
+  $('editLyricBox').addEventListener('pointerdown', event => event.stopPropagation());
+  button('editLyricOpen').addEventListener('click', openLyric);
+  lyric.addEventListener('input', sizeLyric);
+  // Leaving the field, for a button or anywhere else, saves the lyric and puts the field away.
+  lyric.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== lyric) closeLyric(); }));
   // Typing replaces the lyric that is there, as tapping into the field on a phone would otherwise add to it.
   lyric.addEventListener('focus', () => setTimeout(() => lyric.select()));
   lyric.addEventListener('keydown', event => {
@@ -738,7 +811,7 @@ export function initEditor(): void {
     if (event.key === 'Enter' || event.key === ' ') nextLyric(event.shiftKey ? -1 : 1);
     else if (event.key === 'Escape') {
       lyric.value = lyric.dataset.saved ?? '';
-      lyric.blur();
+      closeLyric();
     } else return;
     event.preventDefault();
     event.stopPropagation();
@@ -746,7 +819,7 @@ export function initEditor(): void {
   document.addEventListener(PIANO_NOTE, event => {
     if (!editEnabled() || !noteInput) return;
     // A tap on the piano doesn't take the focus, so save a lyric still being typed first.
-    commitLyric();
+    closeLyric();
     addAfterSelected((event as CustomEvent<number>).detail);
   });
 
@@ -793,15 +866,24 @@ export function initEditor(): void {
     hideGhost();
     // Working on the score takes the keyboard away from the button last pressed, so Enter and Space act on the note.
     if (document.activeElement?.closest('button, summary')) $('scoreViewport').focus({preventScroll: true});
-    commitLyric();
+    closeLyric();
     const staff = scoreStaffAt(event.clientX, event.clientY);
     const radius = Math.max(event.pointerType === 'touch' ? 22 : 12, (staff?.spacing ?? 8) * 1.2);
-    let hit = scoreNoteNear(event.clientX, event.clientY, radius);
+    // A press on a lyric is for that lyric; a finger gets a little room above and below the text.
+    let lyric = scoreNoteAtLyric(event.target as Element);
+    let hit = lyric ?? scoreNoteNear(event.clientX, event.clientY, radius);
+    if (!hit && event.pointerType === 'touch') {
+      for (const dy of [-9, 9]) {
+        const under = document.elementFromPoint(event.clientX, event.clientY + dy);
+        lyric ??= under ? scoreNoteAtLyric(under) : undefined;
+      }
+      hit = lyric;
+    }
     // Drum notes can't be edited: a tap on one says so (through addAt) and a drag scrolls.
     if (hit && writtenTracks(studio.song)[hit.track]?.inst === DRUM_KIT) hit = undefined;
     gesture = {
       pointer: event.pointerId, x: event.clientX, y: event.clientY, hit, spacing: staff?.spacing ?? 8,
-      moved: false, steps: 0, scrollTop: workspace().scrollTop, touch: event.pointerType !== 'mouse',
+      lyric: !!lyric && hit === lyric, moved: false, steps: 0, scrollTop: workspace().scrollTop, touch: event.pointerType !== 'mouse',
     };
     if (event.pointerType !== 'touch') event.preventDefault();
     try { area.setPointerCapture(event.pointerId); } catch { /* works without capture */ }
@@ -812,7 +894,7 @@ export function initEditor(): void {
     const dx = event.clientX - gesture.x, dy = event.clientY - gesture.y;
     if (!gesture.moved && Math.hypot(dx, dy) > 6) gesture.moved = true;
     if (!gesture.moved) return;
-    if (gesture.hit?.note.src) {
+    if (gesture.hit?.note.src && !gesture.lyric) {
       gesture.mode ??= Math.abs(dy) >= Math.abs(dx) ? 'pitch' : 'curve';
       if (gesture.mode === 'pitch') previewDrag(Math.round(-dy / (gesture.spacing / 2)));
       else previewCurve(event.clientX, event.clientY);
@@ -821,7 +903,7 @@ export function initEditor(): void {
   // A drag that starts on a note belongs to the editor in every direction, so the
   // browser must not take a sideways one for scrolling the score.
   area.addEventListener('touchmove', event => {
-    if (gesture?.hit && editEnabled() && event.cancelable) event.preventDefault();
+    if (gesture?.hit && !gesture.lyric && editEnabled() && event.cancelable) event.preventDefault();
   }, {passive: false});
   area.addEventListener('pointerleave', hideGhost);
   area.addEventListener('wheel', hideGhost, {passive: true});
@@ -853,7 +935,7 @@ export function initEditor(): void {
     else if ((event.key === 'Delete' || event.key === 'Backspace') && selected.length) deleteSelected(true);
     // Enter on a focused button, menu or piano key keeps activating that control.
     else if (event.key === 'Enter' && (event.target as Element | null)?.closest?.('button, summary, a[href], select, [role="button"]')) handled = false;
-    else if (event.key === 'Enter' && selected.length) { lyricInput().focus(); lyricInput().select(); }
+    else if (event.key === 'Enter' && selected.length) openLyric();
     else if (event.code === 'KeyN' && !event.shiftKey) { if (!event.repeat) setNoteInput(!noteInput); }
     else if (event.code in VALUE_KEYS && !event.shiftKey) setValue(VALUE_KEYS[event.code]);
     else if (event.key === '.') toggleDot();

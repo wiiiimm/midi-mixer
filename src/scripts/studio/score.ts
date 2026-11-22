@@ -410,6 +410,13 @@ export function scoreNoteNear(clientX: number, clientY: number, radius: number):
   return best;
 }
 
+/** The note a lyric drawn on the score belongs to, given the lyric's element or one inside it. */
+export function scoreNoteAtLyric(element: Element): ScoreNoteHit | undefined {
+  const verse = element.closest('.verse');
+  const note = verse?.closest('.note') ?? verse?.closest('.chord')?.querySelector('.note');
+  return note ? engravedView?.owners.get(note.id) : undefined;
+}
+
 /** The note elements that draw a song note. */
 export function scoreNoteElements(note: Note): SVGGElement[] {
   return (engravedView?.heads.get(note) ?? []).flatMap(id => {
