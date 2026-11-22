@@ -7,24 +7,30 @@ import {
   setPitch, stepPitch, tieChain, unlinkNotes, writtenTracks,
 } from '../midi/edit';
 import { DRUM_KIT, usesBassClef } from '../midi/parse';
+import { PIANO_NOTE } from '../tools/piano';
 import { notify } from '../ui/toast';
 import { originalSong, replaceSong, saveAsNewSong } from './library';
 import { downloadMidi } from '../midi/write';
 import { previewNote, restart } from './playback';
 import {
   editEnabled, onScoreRendered, renderScore, scoreEngraved, scoreNoteElements, scoreNoteFromSource, scoreNoteNear,
-  scoreStaffAt, scrubEnabled, type ScoreNoteHit,
+  scoreStaffAt, scoreXAtBeat, scrollScoreBy, scrubEnabled, type ScoreNoteHit,
 } from './score';
 import { renderSections } from './sections';
-import { studio } from './state';
+import { barAt, studio } from './state';
 import { display, updateSongInfo } from './transport';
 
 // Edit mode: change the notes of the loaded song on the engraved score.
 //
-// · Tap an empty spot on a staff to add a note there (length from the Length menu).
-// · Tap a note to select it; drag it up or down to move it along the scale.
-// · With a note selected, Link and then tap another note of the same part: the same
+// · Tap a note to select it; drag it up or down to move it along the scale. Tapping an
+//   empty spot clears the selection.
+// · With Note input on, tap an empty spot on a staff to add a note there, with the value
+//   chosen in the note value palette. A note played on the piano is added straight after
+//   the selected note and selected in turn, so a line can be played in step by step.
+// · With a note selected, Tie / Slur and then tap another note of the same part: the same
 //   pitch makes a tie (the two play as one sustained note), a different pitch a slur.
+// · On a computer the arrow keys move between notes and change pitch, and the number
+//   keys choose note values, as in other score editors (see the keydown handler).
 // · Undo and redo step through this song's edits; Reset goes back to the original MIDI,
 //   which is never changed (and Undo brings the edits back).
 //
@@ -58,7 +64,29 @@ let gesture: Gesture | undefined;
 
 const button = (id: string) => $<HTMLButtonElement>(id);
 const workspace = () => $('scorewrap').closest('.workspace')!;
-const lengthChoice = () => Number($<HTMLSelectElement>('editLength').value) || 1;
+
+/** Note input: taps on a staff and notes played on the piano add notes. Off, they only select. */
+let noteInput = false;
+/** The note value new notes get, in beats, before its dot. */
+let value = 1, dotted = false;
+const lengthChoice = () => value * (dotted ? 1.5 : 1);
+const INPUT_KEY = 'midi-mixer.noteInput';
+const VALUE_KEYS: Record<string, number> = {Digit3: .25, Digit4: .5, Digit5: 1, Digit6: 2, Digit7: 4};
+const same = (a: number, b: number) => Math.abs(a - b) < 1e-6;
+const valueButtons = () => [...document.querySelectorAll<HTMLButtonElement>('#editValues button')];
+
+/**
+ * A length in beats as a palette value and whether it is dotted, when it is one of them.
+ * Notes in a MIDI file are often held a little short of (or just past) their written value.
+ */
+function paletteValue(length: number): {beats: number; dotted: boolean; name: string} | undefined {
+  const fits = (beats: number) => length > beats * .85 && length < beats * 1.06;
+  for (const element of valueButtons()) {
+    const beats = Number(element.dataset.beats), name = element.dataset.name ?? '';
+    if (fits(beats)) return {beats, dotted: false, name};
+    if (fits(beats * 1.5)) return {beats, dotted: true, name: 'dotted ' + name};
+  }
+}
 
 function historyFor(song: Song): History {
   if (!history || history.song !== song) history = {song, undo: [], redo: []};
@@ -132,8 +160,15 @@ function redo() {
 /** The selected note as drawn on the score. */
 const selectedHit = (): ScoreNoteHit | undefined => selected.length ? scoreNoteFromSource(selected[0]) : undefined;
 
+/** The palette shows a selected note's value, which is also what the next new note gets. */
+function pickValue() {
+  const hit = selected.length === 1 ? selectedHit() : undefined, picked = hit && paletteValue(hit.note.len);
+  if (picked) ({beats: value, dotted} = picked);
+}
+
 function keepSelection() {
   if (selected.length && !selectedHit()) selected = [];
+  pickValue();
   highlight();
   refreshControls();
 }
@@ -145,6 +180,7 @@ const withTies = (ids: readonly number[]): number[] =>
 function select(ids: number[]) {
   selected = withTies(ids);
   linking = false;
+  pickValue();
   highlight();
   refreshControls();
 }
@@ -174,12 +210,55 @@ function refreshControls() {
   button('editRedo').disabled = !h?.redo.length;
   button('editReset').disabled = !song?.edits;
   button('editLink').setAttribute('aria-pressed', String(linking && !!hit));
+  button('editInput').setAttribute('aria-pressed', String(noteInput));
+  $('scorewrap').classList.toggle('edit-input', noteInput);
+  // A selected note of some other length (a tie, or an odd length from the MIDI file) checks no value.
+  const shown = !hit || (selected.length === 1 && !!paletteValue(hit.note.len));
+  for (const element of valueButtons()) {
+    const checked = shown && same(Number(element.dataset.beats), value);
+    element.setAttribute('aria-checked', String(checked));
+    element.tabIndex = checked || (!shown && element.dataset.beats === '1') ? 0 : -1;
+  }
+  button('editDot').setAttribute('aria-pressed', String(shown && dotted));
   if (!on || !song) return;
-  const sf = hit ? song.keyAt(hit.note.q).sf : 0;
-  $('editHint').textContent = linking && hit ?
-    'Tap another note in this part: the same pitch makes a tie, a different pitch a slur.' :
-    hit ? pitchNameWithOctave(hit.note.p, sf) + ' in ' + song.tracks[hit.track].name + ' selected. Drag it up or down to change its pitch, or sideways to another note to tie or slur them.' :
-    'Tap a staff to add a note, or tap a note to select it. Drag a note sideways to another note to tie or slur them.';
+  $('editHint').textContent = hintText(song, hit);
+}
+
+function hintText(song: Song, hit: ScoreNoteHit | undefined): string {
+  const chosen = paletteValue(lengthChoice())?.name ?? 'note';
+  if (linking && hit) return 'Tap another note in this part: the same pitch makes a tie, a different pitch a slur.';
+  if (!hit) {
+    return noteInput ? 'Tap a staff to add a ' + chosen + ', or tap a note to select it.' :
+      'Tap a note to select it. Turn on Note input to add notes.';
+  }
+  const name = pitchNameWithOctave(hit.note.p, song.keyAt(hit.note.q).sf);
+  const length = selected.length > 1 ? 'tied' : paletteValue(hit.note.len)?.name;
+  return name + (length ? ' · ' + length : '') + ' · ' + song.tracks[hit.track].name + ', bar ' + (barAt(song, hit.note.q) + 1) + '. ' +
+    (noteInput ? 'Play the piano to add the next note, or drag this one to change its pitch.' :
+      'Drag up or down to change its pitch, or sideways to another note to tie or slur.');
+}
+
+function setNoteInput(on: boolean) {
+  noteInput = on;
+  try { localStorage.setItem(INPUT_KEY, on ? '1' : '0'); } catch { /* not remembered */ }
+  if (!on) hideGhost();
+  refreshControls();
+}
+
+/** Choosing a value starts it undotted, as in other score editors; the dot is added after. */
+function setValue(beats: number) {
+  value = beats;
+  dotted = false;
+  setSelectedLength();
+  refreshControls();
+}
+
+function toggleDot() {
+  // A selected note of an odd length takes the plain value first.
+  const hit = selectedHit();
+  dotted = hit && selected.length === 1 && !paletteValue(hit.note.len) ? false : !dotted;
+  setSelectedLength();
+  refreshControls();
 }
 
 function setEditing(on: boolean) {
@@ -192,28 +271,38 @@ function setEditing(on: boolean) {
   $('scorewrap').classList.toggle('edit-mode', on);
   $('editBar').hidden = !on;
   cancelGesture();
+  hideGhost();
+  $<HTMLDetailsElement>('editMenu').open = false;
   if (!on) select([]);
   refreshControls();
 }
 
 // ── Actions ──
 
-function addAt(clientX: number, clientY: number) {
+/** Where a tap on a staff would put a note: the part, the snapped beat and the pitch on that line or space. */
+function placement(clientX: number, clientY: number) {
   const song = studio.song, staff = scoreStaffAt(clientX, clientY);
   if (!song || !staff) return;
   const track = writtenTracks(song)[staff.track];
-  if (track.inst === DRUM_KIT) {
-    notify('Drum parts can’t be edited.');
-    return;
-  }
   const bar = song.bars[staff.bar], end = song.bars[staff.bar + 1].q, length = lengthChoice();
-  const grid = Math.min(length, 4 / bar.d);
+  // A dotted value snaps like its plain one, so a dotted quaver can start on any quaver.
+  const grid = Math.min(value, 4 / bar.d);
   // Snap to a grid position inside the bar, even when the last bar is short or ends off the grid.
   const slots = Math.max(1, Math.floor((end - bar.q) / grid + 1e-6));
   const q = bar.q + Math.min(slots - 1, Math.max(0, Math.round((staff.beat - bar.q) / grid))) * grid;
   const sf = song.keyAt(q).sf, topLine = usesBassClef(track) ? 26 : 38; // A3 or F5
-  const pitch = pitchAtStep(topLine + staff.offset, sf);
-  const existing = track.notes.find(note => Math.abs(note.q - q) < 1e-6 && note.p === pitch);
+  return {staff, track, q, length, sf, pitch: pitchAtStep(topLine + staff.offset, sf), drums: track.inst === DRUM_KIT};
+}
+
+function addAt(clientX: number, clientY: number) {
+  const place = placement(clientX, clientY);
+  if (!place) return;
+  if (place.drums) {
+    notify('Drum parts can’t be edited.');
+    return;
+  }
+  const {staff, track, q, length, pitch} = place;
+  const existing = track.notes.find(note => same(note.q, q) && note.p === pitch);
   if (existing?.src) {
     select(existing.src);
     return;
@@ -222,6 +311,82 @@ function addAt(clientX: number, clientY: number) {
   if (commit(edits => { id = addNote(edits, staff.track, q, length, pitch); })) {
     select([id]);
     void previewNote(staff.track, pitch);
+  }
+}
+
+/** Note input from the piano: adds the played pitch straight after the selected note and selects it. */
+function addAfterSelected(pitch: number) {
+  const song = studio.song, first = selectedHit();
+  if (!song || !first || studio.playing) return;
+  const last = scoreNoteFromSource(selected[selected.length - 1]) ?? first;
+  const track = writtenTracks(song)[last.track];
+  if (track.inst === DRUM_KIT) return;
+  // Notes from a MIDI file rarely end exactly on the beat, so start on the nearest semiquaver.
+  const q = Math.max(Math.round((last.note.q + last.note.len) * 4) / 4, last.note.q + .25);
+  const existing = track.notes.find(note => same(note.q, q) && note.p === pitch);
+  if (existing?.src) select(existing.src);
+  else {
+    let id = 0;
+    if (commit(edits => { id = addNote(edits, last.track, q, lengthChoice(), pitch); })) select([id]);
+  }
+  revealSelected();
+}
+
+// ── Moving the selection between notes ──
+
+/** Scrolls the score so the selected note is in view. */
+function revealSelected() {
+  const hit = selectedHit();
+  const head = hit && scoreNoteElements(hit.note)[0]?.querySelector('.notehead')?.getBoundingClientRect();
+  if (!head) return;
+  const view = $('scoreViewport').getBoundingClientRect(), space = workspace(), frame = space.getBoundingClientRect();
+  const left = Math.max(view.left, 0), right = Math.min(view.right, innerWidth), margin = Math.min(90, (right - left) / 4);
+  if (head.left < left + margin) scrollScoreBy(head.left - left - margin);
+  else if (head.right > right - margin) scrollScoreBy(head.right - right + margin);
+  if (head.top < frame.top + 50) space.scrollTop += head.top - frame.top - 50;
+  else if (head.bottom > frame.bottom - 50) space.scrollTop += head.bottom - frame.bottom + 50;
+}
+
+function selectHit(hit: ScoreNoteHit | undefined, sound = true) {
+  if (!hit?.note.src) return;
+  select(hit.note.src);
+  if (sound) void previewNote(hit.track, hit.note.p);
+  revealSelected();
+}
+
+const editable = (song: Song, track: number) => writtenTracks(song)[track]?.inst !== DRUM_KIT;
+const byTime = (song: Song, track: number) => [...writtenTracks(song)[track].notes].sort((a, b) => a.q - b.q || a.p - b.p);
+
+/** The note of a part nearest a beat. */
+function nearestNote(song: Song, track: number, q: number): ScoreNoteHit | undefined {
+  let best: ScoreNoteHit | undefined;
+  for (const note of writtenTracks(song)[track].notes) {
+    if (note.src && (!best || Math.abs(note.q - q) < Math.abs(best.note.q - q))) best = {note, track};
+  }
+  return best;
+}
+
+/** The next (1) or previous (-1) note of the selected note's part, past any notes tied to it. */
+function neighbour(step: number): ScoreNoteHit | undefined {
+  const song = studio.song, hit = selectedHit();
+  if (!song) return;
+  if (!hit) {
+    const track = song.tracks.findIndex((_, index) => editable(song, index));
+    return track < 0 ? undefined : nearestNote(song, track, song.beat(studio.pos));
+  }
+  const notes = byTime(song, hit.track);
+  for (let i = notes.indexOf(hit.note) + step; i >= 0 && i < notes.length; i += step) {
+    if (notes[i].src && !notes[i].src!.some(id => selected.includes(id))) return {note: notes[i], track: hit.track};
+  }
+}
+
+/** The note at the same time in the part above (-1) or below (1). */
+function inOtherPart(step: number): ScoreNoteHit | undefined {
+  const song = studio.song, hit = selectedHit();
+  if (!song || !hit) return;
+  for (let track = hit.track + step; track >= 0 && track < song.tracks.length; track += step) {
+    const found = editable(song, track) ? nearestNote(song, track, hit.note.q) : undefined;
+    if (found) return found;
   }
 }
 
@@ -257,17 +422,21 @@ function tapNote(hit: ScoreNoteHit) {
   void previewNote(hit.track, hit.note.p);
 }
 
-function deleteSelected() {
+/** Deletes the selection. From the keyboard, the note before it (or after) is selected next. */
+function deleteSelected(thenSelect = false) {
   const song = studio.song;
   if (!song || !selected.length) return;
-  const ids = selected;
+  const ids = selected, next = thenSelect ? (neighbour(-1) ?? neighbour(1))?.note.src : undefined;
   if (commit(edits => {
     if (noteCount(edits) <= ids.length) {
       notify('A song needs at least one note.');
       return false;
     }
     removeNotes(edits, ids);
-  })) select([]);
+  })) {
+    select(next ?? []);
+    if (next) revealSelected();
+  }
 }
 
 /** Moves the selected note by scale steps (in the key) or by semitones. */
@@ -283,6 +452,7 @@ function moveSelected(amount: number, semitones: boolean) {
     return false;
   })) {
     keepSelection();
+    revealSelected();
     void previewNote(hit.track, pitch);
   }
 }
@@ -357,6 +527,37 @@ function previewCurve(clientX: number, clientY: number) {
     valid.note.p === gesture.hit.note.p ? 'Let go to tie these notes.' : 'Let go to slur these notes.';
 }
 
+/** With Note input on, a mouse over a staff shows the note a click would add there. */
+function showGhost(event: PointerEvent) {
+  const ghost = $('editGhost');
+  const place = noteInput && !linking && (event.target as Element).closest?.('#engravedScore') ?
+    placement(event.clientX, event.clientY) : undefined;
+  const x = place && !place.drums ? scoreXAtBeat(place.q) : undefined;
+  const near = place && scoreNoteNear(event.clientX, event.clientY, Math.max(12, place.staff.spacing * 1.2));
+  if (!place || x === undefined || (near && tappedNote(near, event.clientX, event.clientY, place.staff.spacing, false))) {
+    ghost.hidden = true;
+    return;
+  }
+  const {offset, spacing, top} = place.staff;
+  ghost.hidden = false;
+  ghost.style.setProperty('--space', spacing + 'px');
+  ghost.style.transform = 'translate(' + x + 'px, ' + (top - offset * spacing / 2) + 'px)';
+  // Ledger lines: every second step above the top line (0) or below the bottom line (-8).
+  const ledgers: number[] = [];
+  for (let step = 2; step <= offset; step += 2) ledgers.push(step);
+  for (let step = -10; step >= offset; step -= 2) ledgers.push(step);
+  ghost.querySelector('.edit-ghost-ledgers')!.replaceChildren(...ledgers.map(step => {
+    const line = document.createElement('i');
+    line.style.top = (offset - step) * spacing / 2 + 'px';
+    return line;
+  }));
+  ghost.querySelector('.edit-ghost-label')!.textContent = pitchNameWithOctave(place.pitch, place.sf);
+}
+
+function hideGhost() {
+  $('editGhost').hidden = true;
+}
+
 function cancelGesture() {
   if (gesture?.hit) {
     for (const element of chainElements(gesture.hit)) {
@@ -386,10 +587,13 @@ function finishGesture(event: PointerEvent) {
   if (!ended || event.pointerId !== ended.pointer) return;
   if (!ended.moved) {
     cancelGesture();
-    const onNote = ended.hit && (linking || tappedNote(ended.hit, event.clientX, event.clientY, ended.spacing, event.pointerType === 'touch'));
+    // Without Note input a tap near a note selects it; with it, a tap beside a note adds one there.
+    const onNote = ended.hit && (linking || !noteInput ||
+      tappedNote(ended.hit, event.clientX, event.clientY, ended.spacing, event.pointerType === 'touch'));
     if (ended.hit && onNote) tapNote(ended.hit);
     else if (linking) { linking = false; refreshControls(); }
-    else addAt(event.clientX, event.clientY);
+    else if (noteInput) addAt(event.clientX, event.clientY);
+    else select([]);
     return;
   }
   const steps = ended.steps, hit = ended.hit, target = ended.target;
@@ -415,13 +619,28 @@ export function initEditor(): void {
       setEditing(false);
       notify('This song can’t be engraved, so it can’t be edited.');
     }
+    hideGhost();
     highlight();
     refreshControls();
   });
 
+  try { noteInput = localStorage.getItem(INPUT_KEY) === '1'; } catch { /* starts off */ }
+  button('editInput').addEventListener('click', () => setNoteInput(!noteInput));
+  for (const element of valueButtons()) element.addEventListener('click', () => setValue(Number(element.dataset.beats)));
+  button('editDot').addEventListener('click', toggleDot);
+  // The Song menu closes after a choice, or on a press anywhere else.
+  const menu = $<HTMLDetailsElement>('editMenu');
+  menu.querySelector('.edit-menu-items')!.addEventListener('click', () => { menu.open = false; });
+  document.addEventListener('pointerdown', event => {
+    if (menu.open && !menu.contains(event.target as Node)) menu.open = false;
+  });
+  document.addEventListener(PIANO_NOTE, event => {
+    if (editEnabled() && noteInput) addAfterSelected((event as CustomEvent<number>).detail);
+  });
+
   button('editDown').addEventListener('click', () => moveSelected(-1, true));
   button('editUp').addEventListener('click', () => moveSelected(1, true));
-  button('editDelete').addEventListener('click', deleteSelected);
+  button('editDelete').addEventListener('click', () => deleteSelected());
   button('editLink').addEventListener('click', () => { linking = !linking && !!selectedHit(); refreshControls(); });
   button('editUnlink').addEventListener('click', unlinkSelected);
   button('editUndo').addEventListener('click', undo);
@@ -441,7 +660,6 @@ export function initEditor(): void {
       if (studio.song === h.song && history === h && h.undo.at(-1) === before) undo();
     });
   });
-  $('editLength').addEventListener('change', setSelectedLength);
   button('editDownload').addEventListener('click', () => { if (studio.song) downloadMidi(studio.song); });
   button('editSaveAs').addEventListener('click', () => {
     const song = studio.song;
@@ -460,6 +678,7 @@ export function initEditor(): void {
     }
     if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
     if (!(event.target as Element).closest('#engravedScore')) return;
+    hideGhost();
     const staff = scoreStaffAt(event.clientX, event.clientY);
     const radius = Math.max(event.pointerType === 'touch' ? 22 : 12, (staff?.spacing ?? 8) * 1.2);
     let hit = scoreNoteNear(event.clientX, event.clientY, radius);
@@ -473,6 +692,7 @@ export function initEditor(): void {
     try { area.setPointerCapture(event.pointerId); } catch { /* works without capture */ }
   });
   area.addEventListener('pointermove', event => {
+    if (!gesture && event.pointerType === 'mouse' && editEnabled()) showGhost(event);
     if (!gesture || event.pointerId !== gesture.pointer) return;
     const dx = event.clientX - gesture.x, dy = event.clientY - gesture.y;
     if (!gesture.moved && Math.hypot(dx, dy) > 6) gesture.moved = true;
@@ -488,25 +708,36 @@ export function initEditor(): void {
   area.addEventListener('touchmove', event => {
     if (gesture?.hit && editEnabled() && event.cancelable) event.preventDefault();
   }, {passive: false});
+  area.addEventListener('pointerleave', hideGhost);
+  area.addEventListener('wheel', hideGhost, {passive: true});
   area.addEventListener('pointerup', finishGesture);
   area.addEventListener('pointercancel', event => {
     if (gesture && event.pointerId === gesture.pointer) { cancelGesture(); refreshControls(); }
   });
 
+  // Keys, as in other score editors where the piano's own shortcuts leave room:
+  // ← → previous or next note · ↑ ↓ pitch by step (Shift: semitone, Ctrl/⌘: octave) · Alt ↑ ↓ part above or below
+  // N Note input · 3–7 semiquaver to semibreve · . dotted · Delete · Esc · Ctrl/⌘ Z undo, Shift Ctrl/⌘ Z or Ctrl Y redo
   document.addEventListener('keydown', event => {
     if (!editEnabled() || event.defaultPrevented || event.isComposing || shortcutsBlocked(event)) return;
-    const command = event.ctrlKey || event.metaKey;
-    if (command && event.code === 'KeyZ') {
-      event.preventDefault();
-      if (event.shiftKey) redo(); else undo();
-      return;
+    const command = event.ctrlKey || event.metaKey, up = event.key === 'ArrowUp', down = event.key === 'ArrowDown';
+    let handled = true;
+    if (command && event.code === 'KeyZ') { if (event.shiftKey) redo(); else undo(); }
+    else if (command && event.code === 'KeyY') redo();
+    else if ((up || down) && selected.length) {
+      if (event.altKey) selectHit(inOtherPart(up ? -1 : 1));
+      else moveSelected((up ? 1 : -1) * (command ? 12 : 1), command || event.shiftKey);
     }
-    if (command || event.altKey) return;
-    if (event.key === 'Escape' && (selected.length || linking)) { select([]); event.preventDefault(); }
-    else if ((event.key === 'Delete' || event.key === 'Backspace') && selected.length) { deleteSelected(); event.preventDefault(); }
-    else if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && selected.length) {
-      moveSelected(event.key === 'ArrowUp' ? 1 : -1, event.shiftKey);
-      event.preventDefault();
-    }
+    else if (command || event.altKey) handled = false;
+    else if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') selectHit(neighbour(event.key === 'ArrowLeft' ? -1 : 1));
+    else if (event.key === 'Escape' && menu.open) menu.open = false;
+    else if (event.key === 'Escape' && (selected.length || linking)) select([]);
+    else if (event.key === 'Escape' && noteInput) setNoteInput(false);
+    else if ((event.key === 'Delete' || event.key === 'Backspace') && selected.length) deleteSelected(true);
+    else if (event.code === 'KeyN' && !event.shiftKey) { if (!event.repeat) setNoteInput(!noteInput); }
+    else if (event.code in VALUE_KEYS && !event.shiftKey) setValue(VALUE_KEYS[event.code]);
+    else if (event.key === '.') toggleDot();
+    else handled = false;
+    if (handled) event.preventDefault();
   });
 }

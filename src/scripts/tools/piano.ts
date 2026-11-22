@@ -18,6 +18,8 @@ interface HeldKey { key: HTMLElement; voice?: StoppableVoice }
 
 const shortcuts = "AWSEDFTGYHUJKOLP;'";
 const shortcutCodes = [...shortcuts].map(key => ({';': 'Semicolon', "'": 'Quote'} as Record<string, string>)[key] ?? 'Key' + key);
+/** Sent on the document, with the MIDI pitch, each time a piano key is pressed. */
+export const PIANO_NOTE = 'piano-note';
 const WHITE_KEYS = 77;
 const MIDDLE_C = 60;
 
@@ -142,6 +144,8 @@ export function initPiano(): void {
   async function press(id: unknown, key: HTMLElement | undefined) {
     if (!key || held.has(id)) return;
     const program = Number(voiceSelect.value), pitch = Number(key.dataset.pitch);
+    // Note input in Edit mode listens for this to enter the played note (see studio/editor.ts).
+    document.dispatchEvent(new CustomEvent<number>(PIANO_NOTE, {detail: pitch}));
     const note: HeldKey = {key};
     held.set(id, note);
     const previous = sustained.get(key);

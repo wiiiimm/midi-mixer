@@ -438,6 +438,8 @@ export interface ScoreStaffHit {
   offset: number;
   /** Distance between staff lines, in screen pixels. */
   spacing: number;
+  /** Screen y of the staff's top line. */
+  top: number;
 }
 
 /** The staff position (track, beat and line or space) under a screen point. */
@@ -457,10 +459,18 @@ export function scoreStaffAt(clientX: number, clientY: number): ScoreStaffHit | 
     if (distance < bestDistance && distance <= spacing * 4) {
       bestDistance = distance;
       best = {track, beat: interpolate(bar.anchors, Math.max(bar.left, point.x), 1), bar: index,
-        offset: Math.round((top - clientY) / (spacing / 2)), spacing};
+        offset: Math.round((top - clientY) / (spacing / 2)), spacing, top};
     }
   });
   return best;
+}
+
+/** The screen x of a beat on the engraving (between engraved onsets it is an estimate). */
+export function scoreXAtBeat(beat: number): number | undefined {
+  const song = studio.song, view = engravedView;
+  const bar = song && view?.geometry.get(barAt(song, beat));
+  if (!view || !bar) return;
+  return view.svg.getBoundingClientRect().left + interpolate(bar.anchors, beat, 0) * scoreZoom();
 }
 
 /** Scrolls the engraved score sideways by dx pixels; returns whether it moved. */
