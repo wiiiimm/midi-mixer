@@ -708,6 +708,19 @@ export function initEditor(): void {
   try { noteInput = localStorage.getItem(INPUT_KEY) === '1'; } catch { /* starts off */ }
   button('editInput').addEventListener('click', () => setNoteInput(!noteInput));
   for (const element of valueButtons()) element.addEventListener('click', () => setValue(Number(element.dataset.beats)));
+  // The palette is a radio group: its arrow keys move between the values and don't reach the score's shortcuts.
+  $('editValues').addEventListener('keydown', event => {
+    const step = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0;
+    if (!step || event.ctrlKey || event.metaKey || event.altKey) return;
+    const buttons = valueButtons(), at = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    if (at < 0) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const next = buttons[(at + step + buttons.length) % buttons.length];
+    setValue(Number(next.dataset.beats));
+    next.tabIndex = 0;
+    next.focus();
+  });
   button('editDot').addEventListener('click', toggleDot);
   // The Song menu closes after a choice, or on a press anywhere else.
   const menu = $<HTMLDetailsElement>('editMenu');
