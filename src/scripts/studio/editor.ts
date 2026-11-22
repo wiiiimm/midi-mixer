@@ -763,6 +763,8 @@ export function initEditor(): void {
   document.addEventListener('keydown', event => {
     if (!editEnabled() || event.defaultPrevented || event.isComposing || shortcutsBlocked(event)) return;
     const command = event.ctrlKey || event.metaKey, up = event.key === 'ArrowUp', down = event.key === 'ArrowDown';
+    // A focused slider (score zoom, a track's volume) keeps its own arrow keys.
+    if (event.key.startsWith('Arrow') && (event.target as Element | null)?.closest?.('input[type=range]')) return;
     let handled = true;
     if (command && event.code === 'KeyZ') { if (event.shiftKey) redo(); else undo(); }
     else if (command && event.code === 'KeyY') redo();
