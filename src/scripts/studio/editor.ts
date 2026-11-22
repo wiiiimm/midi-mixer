@@ -831,6 +831,8 @@ export function initEditor(): void {
     else if (event.key === 'Escape' && (selected.length || linking)) select([]);
     else if (event.key === 'Escape' && noteInput) setNoteInput(false);
     else if ((event.key === 'Delete' || event.key === 'Backspace') && selected.length) deleteSelected(true);
+    // Enter on a focused button, menu or piano key keeps activating that control.
+    else if (event.key === 'Enter' && (event.target as Element | null)?.closest?.('button, summary, a[href], select, [role="button"]')) handled = false;
     else if (event.key === 'Enter' && selected.length) { lyricInput().focus(); lyricInput().select(); }
     else if (event.code === 'KeyN' && !event.shiftKey) { if (!event.repeat) setNoteInput(!noteInput); }
     else if (event.code in VALUE_KEYS && !event.shiftKey) setValue(VALUE_KEYS[event.code]);
