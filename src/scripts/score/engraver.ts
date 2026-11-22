@@ -287,6 +287,8 @@ function encodeScore(song: Song, mode: StaffLabelMode) {
   for (const {link, element} of curves) {
     const start = heads.get(link.from)?.at(-1), end = heads.get(link.to)?.[0];
     if (!start || !end) continue;
+    // Engraving rounds note times, so check the drawn heads still run forwards.
+    if ((timing.get(start)?.start ?? 0) >= (timing.get(end)?.start ?? 0)) continue;
     const bar = headBar.get(start)!;
     links.set(bar, (links.get(bar) ?? '') + '<' + element + ' staff="' + (link.track + 1) + '" startid="#' + start + '" endid="#' + end + '"/>');
   }
