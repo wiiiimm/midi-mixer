@@ -121,7 +121,11 @@ export async function saveAsNewSong(song: Song, name: string): Promise<Song> {
   const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
   const stored: StoredFile = {id: 'saved:' + Date.now() + ':' + Math.random().toString(36).slice(2, 8), name, data, added: Date.now()};
   const saved = songFrom(stored);
-  saved.mix = song.mix?.map(channel => ({...channel, selected: false}));
+  // Parts left with no notes are not written, so carry over the mixer settings of the parts that remain.
+  const kept = song.tracks.flatMap((track, index) => track.notes.length ? [index] : []);
+  const mix = song.mix;
+  saved.mix = mix && mix.length === song.tracks.length && kept.length === saved.tracks.length ?
+    kept.map(index => ({...mix[index], selected: false})) : undefined;
   studio.songs.push(saved);
   selectSong(saved);
   refreshLibrary();

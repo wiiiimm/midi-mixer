@@ -151,6 +151,7 @@ function highlight() {
     editingSong = studio.song;
     selected = [];
     linking = false;
+    cancelGesture();
   }
   for (const element of document.querySelectorAll('#engravedScore .edit-selected')) element.classList.remove('edit-selected');
   if (!selectedHit()) return;
