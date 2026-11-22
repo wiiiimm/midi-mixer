@@ -195,17 +195,17 @@ export function setLyric(edits: SongEdits, id: number, text: string): boolean {
 /** How far a drawn lyric may sit from the beat it was read at, as engraving rounds times. */
 const LYRIC_REACH = .13;
 
-/** The lyric nearest a beat within a chain of tied notes, with a way to replace it. */
-function lyricSpot(edits: SongEdits, ids: readonly number[], q: number) {
-  let best: {distance: number; text: string; set: (lyric: string) => boolean} | undefined;
+type LyricSpot = {distance: number; text: string; set: (lyric: string) => boolean};
+
+/** The lyric nearest a beat among some notes, with a way to replace it. */
+function nearestLyric(edits: SongEdits, notes: readonly EditNote[], q: number): LyricSpot | undefined {
+  let best: LyricSpot | undefined;
   const offer = (at: number, text: string, set: (lyric: string) => boolean) => {
     const distance = Math.abs(at - q);
     if (distance <= LYRIC_REACH && (!best || distance < best.distance)) best = {distance, text, set};
   };
-  for (const id of ids) {
-    const note = findNote(edits, id)?.note;
-    if (!note) continue;
-    offer(note.q, note.lyric ?? '', lyric => setLyric(edits, id, lyric));
+  for (const note of notes) {
+    offer(note.q, note.lyric ?? '', lyric => setLyric(edits, note.id, lyric));
     for (const cue of note.lyricCues ?? []) {
       offer(cue.q, cue.text, lyric => {
         if (cue.text === lyric) return false;
@@ -219,6 +219,22 @@ function lyricSpot(edits: SongEdits, ids: readonly number[], q: number) {
     }
   }
   return best;
+}
+
+/**
+ * The lyric nearest a beat within a chain of tied notes, with a way to replace it. A chord shares one
+ * syllable, drawn under whichever of its notes is engraved with it, so when the chain itself has none
+ * there, the other notes sounding with it in the part are asked too.
+ */
+function lyricSpot(edits: SongEdits, ids: readonly number[], q: number): LyricSpot | undefined {
+  const found = ids.map(id => findNote(edits, id)).filter(f => f !== undefined);
+  const own = nearestLyric(edits, found.map(f => f.note), q);
+  if (own?.text) return own;
+  const chain = new Set(found.map(f => f.note));
+  const mates = found.flatMap(({note, track}) =>
+    edits.tracks[track].filter(other => !chain.has(other) && Math.abs(other.q - note.q) < 1e-6));
+  const shared = nearestLyric(edits, mates, q);
+  return shared?.text ? shared : own;
 }
 
 /** The lyric sung at a beat within a chain of tied notes, or undefined when none of them is found. */
