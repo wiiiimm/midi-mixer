@@ -266,7 +266,8 @@ function showLyric(hit: ScoreNoteHit | undefined) {
     lyricIds = [...selected];
     lyricSong = studio.song;
     // A tie chain is selected through its first note, but the lyric may belong to a later one.
-    const edits = studio.song?.edits;
+    // Read the way a save writes, so a chord's shared syllable shows even before the song's first edit.
+    const edits = studio.song ? editsFor(studio.song) : undefined;
     const lyric = (edits && lyricTextAt(edits, lyricIds, lyricAt)) ?? lyricText(hit.note, lyricAt);
     lyricNote = id;
     input.value = lyric;

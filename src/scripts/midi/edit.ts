@@ -202,7 +202,10 @@ function nearestLyric(edits: SongEdits, notes: readonly EditNote[], q: number): 
   let best: LyricSpot | undefined;
   const offer = (at: number, text: string, set: (lyric: string) => boolean) => {
     const distance = Math.abs(at - q);
-    if (distance <= LYRIC_REACH && (!best || distance < best.distance)) best = {distance, text, set};
+    if (distance > LYRIC_REACH) return;
+    // Notes of a chord start together: the one that carries the syllable wins over a blank one.
+    const tied = best !== undefined && Math.abs(distance - best.distance) < 1e-6;
+    if (!best || (tied ? text && !best.text : distance < best.distance)) best = {distance, text, set};
   };
   for (const note of notes) {
     offer(note.q, note.lyric ?? '', lyric => setLyric(edits, note.id, lyric));
