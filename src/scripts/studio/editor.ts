@@ -379,7 +379,8 @@ function commitLyric() {
   if (studio.song !== lyricSong) return;
   const text = input.value;
   input.dataset.saved = text.trim();
-  commit(edits => setLyricAt(edits, ids, at, text));
+  // The edit puts a rebuilt song in place of this one: the field, if it stays open, now belongs to that.
+  if (commit(edits => setLyricAt(edits, ids, at, text))) lyricSong = studio.song;
 }
 
 /** Saves the lyric and moves on to the next note of the part, staying in the field, for typing a line in. */
