@@ -259,7 +259,8 @@ function commitLyric() {
 /** Saves the lyric and moves on to the next note of the part, staying in the field, for typing a line in. */
 function nextLyric(step: number) {
   commitLyric();
-  const next = neighbour(step);
+  // A chord shares one syllable, so move on past its other notes.
+  const next = neighbour(step, true);
   if (!next) return;
   lyricNote = undefined;
   selectHit(next, false);
@@ -410,8 +411,8 @@ function nearestNote(song: Song, track: number, q: number): ScoreNoteHit | undef
   return best;
 }
 
-/** The next (1) or previous (-1) note of the selected note's part, past any notes tied to it. */
-function neighbour(step: number): ScoreNoteHit | undefined {
+/** The next (1) or previous (-1) note of the selected note's part, past any notes tied to it, and past its chord if asked. */
+function neighbour(step: number, pastChord = false): ScoreNoteHit | undefined {
   const song = studio.song, hit = selectedHit();
   if (!song) return;
   if (!hit) {
@@ -422,6 +423,7 @@ function neighbour(step: number): ScoreNoteHit | undefined {
   const from = cursor !== undefined && selected.includes(cursor) ? scoreNoteFromSource(cursor)?.note ?? hit.note : hit.note;
   const notes = byTime(song, hit.track);
   for (let i = notes.indexOf(from) + step; i >= 0 && i < notes.length; i += step) {
+    if (pastChord && same(notes[i].q, from.q)) continue;
     if (notes[i].src && !notes[i].src!.some(id => selected.includes(id))) return {note: notes[i], track: hit.track};
   }
 }
@@ -729,7 +731,10 @@ export function initEditor(): void {
     event.stopPropagation();
   });
   document.addEventListener(PIANO_NOTE, event => {
-    if (editEnabled() && noteInput) addAfterSelected((event as CustomEvent<number>).detail);
+    if (!editEnabled() || !noteInput) return;
+    // A tap on the piano doesn't take the focus, so save a lyric still being typed first.
+    commitLyric();
+    addAfterSelected((event as CustomEvent<number>).detail);
   });
 
   button('editDown').addEventListener('click', () => moveSelected(-1, true));
@@ -773,6 +778,8 @@ export function initEditor(): void {
     if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
     if (!(event.target as Element).closest('#engravedScore')) return;
     hideGhost();
+    // Working on the score takes the keyboard away from the button last pressed, so Enter and Space act on the note.
+    if (document.activeElement?.closest('button, summary')) $('scoreViewport').focus({preventScroll: true});
     commitLyric();
     const staff = scoreStaffAt(event.clientX, event.clientY);
     const radius = Math.max(event.pointerType === 'touch' ? 22 : 12, (staff?.spacing ?? 8) * 1.2);
