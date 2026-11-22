@@ -4,7 +4,7 @@ import { shortcutsBlocked } from '../lib/shortcuts';
 import type { Song, SongEdits } from '../lib/types';
 import {
   addNote, applyEdits, cloneEdits, editsFor, findNote, hasLinks, linkNotes, noteCount, pitchAtStep, pitchClashes, removeNotes,
-  setPitch, stepPitch, tieChain, unlinkNotes, writtenTracks,
+  setPitch, staffStep, stepPitch, tieChain, unlinkNotes, writtenTracks,
 } from '../midi/edit';
 import { DRUM_KIT, usesBassClef } from '../midi/parse';
 import { PIANO_NOTE } from '../tools/piano';
@@ -61,6 +61,8 @@ interface Gesture {
   steps: number;
   target?: ScoreNoteHit;
   scrollTop: number;
+  /** A finger or pen, which covers the note it drags. */
+  touch: boolean;
 }
 let gesture: Gesture | undefined;
 
@@ -507,9 +509,42 @@ function previewDrag(steps: number) {
     marker.hidden = false;
     marker.style.transform = 'translate(' + (head.left + head.width / 2) + 'px, ' + (head.top + head.height / 2) + 'px)';
     marker.querySelector('.edit-drag-label')!.textContent = name;
+    marker.classList.toggle('edit-drag-touch', gesture.touch);
+    if (gesture.touch) showLoupe(marker, hit, steps, name, head.left + head.width / 2, head.top + head.height / 2);
   }
   if (steps !== gesture.steps) void previewNote(hit.track, pitch, .35);
   gesture.steps = steps;
+}
+
+/**
+ * A finger hides the note it drags, so a small staff floats above it showing the note on its
+ * new line or space (orange), where it started (grey) and its pitch name.
+ */
+function showLoupe(marker: HTMLElement, hit: ScoreNoteHit, steps: number, name: string, x: number, y: number) {
+  const song = studio.song!, loupe = marker.querySelector<HTMLElement>('.edit-loupe')!;
+  const sf = song.keyAt(hit.note.q).sf, topLine = usesBassClef(writtenTracks(song)[hit.track]) ? 26 : 38;
+  // Staff steps above the top line (0); the bottom line is -8.
+  const from = staffStep(hit.note.p, sf) - topLine, to = from + steps;
+  const space = 10, width = 132, height = 104, top = 32, yOf = (step: number) => top - step * space / 2;
+  // Keep the moved note inside the window when it climbs or drops far off the staff.
+  const noteY = yOf(to), shift = noteY < 14 ? noteY - 14 : noteY > height - 14 ? noteY - (height - 14) : 0;
+  const line = (ly: number, x1: number, x2: number) => '<path d="M' + x1 + ' ' + ly + 'H' + x2 + '" />';
+  const ledgers = (step: number, cx: number) => {
+    let lines = '';
+    for (let s = 2; s <= step; s += 2) lines += line(yOf(s), cx - 13, cx + 13);
+    for (let s = -10; s >= step; s -= 2) lines += line(yOf(s), cx - 13, cx + 13);
+    return lines;
+  };
+  const head = (step: number, cx: number, cls: string) =>
+    '<ellipse class="' + cls + '" cx="' + cx + '" cy="' + yOf(step) + '" rx="7.2" ry="5" transform="rotate(-20 ' + cx + ' ' + yOf(step) + ')" />';
+  loupe.querySelector('svg')!.innerHTML = '<g transform="translate(0 ' + -shift + ')">' +
+    [0, 1, 2, 3, 4].map(i => line(top + i * space, 8, width - 8)).join('') +
+    (steps ? ledgers(from, 46) + head(from, 46, 'was') : '') + ledgers(to, steps ? 84 : 66) + head(to, steps ? 84 : 66, 'now') + '</g>';
+  loupe.querySelector('.edit-loupe-name')!.textContent = name;
+  // Above the finger where there is room, and always inside the screen.
+  const left = Math.max(8, Math.min(innerWidth - width - 8, x - width / 2)), above = y - 190;
+  loupe.style.left = left - x + 'px';
+  loupe.style.top = (above < 8 ? Math.max(8, y + 90) : above) - y + 'px';
 }
 
 /** While dragging sideways from a note: a curve from it to the pointer, and the note it would join. */
@@ -693,7 +728,7 @@ export function initEditor(): void {
     if (hit && writtenTracks(studio.song)[hit.track]?.inst === DRUM_KIT) hit = undefined;
     gesture = {
       pointer: event.pointerId, x: event.clientX, y: event.clientY, hit, spacing: staff?.spacing ?? 8,
-      moved: false, steps: 0, scrollTop: workspace().scrollTop,
+      moved: false, steps: 0, scrollTop: workspace().scrollTop, touch: event.pointerType !== 'mouse',
     };
     if (event.pointerType !== 'touch') event.preventDefault();
     try { area.setPointerCapture(event.pointerId); } catch { /* works without capture */ }

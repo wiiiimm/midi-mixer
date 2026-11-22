@@ -605,6 +605,15 @@ nav .song-download:hover{background:#0a84ff33;color:#409cff}
 .edit-drag[hidden] { display: none; }
 .edit-drag-line { position: absolute; left: -36px; width: 72px; top: -1px; height: 2px; border-radius: 1px; background: rgba(255, 159, 10, .75); }
 .edit-drag-label { position: absolute; left: 0; bottom: 44px; transform: translateX(-50%); padding: 3px 9px; border-radius: 999px; background: #ff9f0a; color: #000; font: 600 15px/1.2 system-ui, sans-serif; white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, .3); }
+/* Touch: a floating staff above the finger shows the dragged note's new line or space (see showLoupe). */
+.edit-loupe { display: none; position: absolute; width: 132px; padding: 4px 0 6px; border-radius: 14px; background: #fff; border: 2px solid #ff9f0a; box-shadow: 0 8px 24px rgba(0, 0, 0, .45); text-align: center; }
+.edit-drag-touch .edit-loupe { display: block; }
+.edit-drag-touch .edit-drag-label { display: none; }
+.edit-loupe svg { display: block; width: 132px; height: 104px; }
+.edit-loupe path { stroke: #232323; stroke-width: 1.2; fill: none; }
+.edit-loupe .was { fill: none; stroke: #9a9a9a; stroke-width: 1.5; }
+.edit-loupe .now { fill: #ff9f0a; }
+.edit-loupe-name { display: block; color: #111; font: 700 20px/1.1 system-ui, sans-serif; }
 .edit-curve { position: fixed; inset: 0; pointer-events: none; z-index: 30; }
 .edit-curve svg { width: 100%; height: 100%; overflow: visible; }
 .edit-curve[hidden] { display: none; }
