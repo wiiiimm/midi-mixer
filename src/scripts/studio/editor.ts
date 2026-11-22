@@ -15,6 +15,7 @@ import {
   editEnabled, onScoreRendered, renderScore, scoreEngraved, scoreNoteElements, scoreNoteFromSource, scoreNoteNear,
   scoreStaffAt, scrubEnabled, type ScoreNoteHit,
 } from './score';
+import { renderSections } from './sections';
 import { studio } from './state';
 import { display, updateSongInfo } from './transport';
 
@@ -86,6 +87,8 @@ function apply(edits: SongEdits | null): boolean {
   studio.pos = Math.min(studio.pos, next.duration);
   studio.cue = Math.min(studio.cue, next.duration);
   updateSongInfo(next);
+  // Section chips hold bar ranges, so rebuild them when an edit changes the song's length.
+  if (next.bars.length !== song.bars.length) renderSections(next);
   renderScore(true);
   display();
   if (studio.playing) restart();
