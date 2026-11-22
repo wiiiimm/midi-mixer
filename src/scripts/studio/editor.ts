@@ -42,6 +42,8 @@ interface History { song: Song; undo: (SongEdits | null)[]; redo: (SongEdits | n
 
 /** The selected edit notes (by id): a note and any notes tied to it. */
 let selected: number[] = [];
+/** The note of the selection that arrow keys move on from: with a tie selected, the member last reached. */
+let cursor: number | undefined;
 let linking = false;
 let history: History | undefined;
 /** The song the selection belongs to; another song being picked clears it. */
@@ -178,6 +180,7 @@ const withTies = (ids: readonly number[]): number[] =>
   studio.song?.edits && ids.length ? tieChain(studio.song.edits, ids[0]) : [...ids];
 
 function select(ids: number[]) {
+  cursor = ids[0];
   selected = withTies(ids);
   linking = false;
   pickValue();
@@ -376,8 +379,10 @@ function neighbour(step: number): ScoreNoteHit | undefined {
     const track = song.tracks.findIndex((_, index) => editable(song, index));
     return track < 0 ? undefined : nearestNote(song, track, song.beat(studio.pos));
   }
+  // Start from the tied note last reached, so a note between a tie's members can't trap the arrows.
+  const from = cursor !== undefined && selected.includes(cursor) ? scoreNoteFromSource(cursor)?.note ?? hit.note : hit.note;
   const notes = byTime(song, hit.track);
-  for (let i = notes.indexOf(hit.note) + step; i >= 0 && i < notes.length; i += step) {
+  for (let i = notes.indexOf(from) + step; i >= 0 && i < notes.length; i += step) {
     if (notes[i].src && !notes[i].src!.some(id => selected.includes(id))) return {note: notes[i], track: hit.track};
   }
 }
