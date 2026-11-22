@@ -410,12 +410,16 @@ export function scoreNoteNear(clientX: number, clientY: number, radius: number):
   return best;
 }
 
-/** The note a lyric drawn on the score belongs to, given the lyric's element or one inside it. */
-export function scoreNoteAtLyric(element: Element): ScoreNoteHit | undefined {
+/** The note a lyric drawn on the score belongs to, given the lyric's element or one inside it, and the beat it is sung on. */
+export function scoreNoteAtLyric(element: Element): (ScoreNoteHit & {q: number}) | undefined {
   const verse = element.closest('.verse');
   const note = verse?.closest('.note') ?? verse?.closest('.chord')?.querySelector('.note');
-  return note ? engravedView?.owners.get(note.id) : undefined;
+  const owner = note && engravedView?.owners.get(note.id);
+  return owner ? {...owner, q: engravedView!.timing.get(note.id)?.start ?? owner.note.q} : undefined;
 }
+
+/** The beat a drawn notehead starts on: a long or tied note is drawn as several. */
+export const scoreHeadOnset = (id: string): number | undefined => engravedView?.timing.get(id)?.start;
 
 /** The note elements that draw a song note. */
 export function scoreNoteElements(note: Note): SVGGElement[] {

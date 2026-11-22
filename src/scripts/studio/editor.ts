@@ -4,7 +4,7 @@ import { shortcutsBlocked } from '../lib/shortcuts';
 import type { Song, SongEdits } from '../lib/types';
 import {
   addNote, applyEdits, cloneEdits, editsFor, findNote, hasLinks, linkNotes, noteCount, pitchAtStep, pitchClashes, removeNotes,
-  setLyric, setPitch, staffStep, stepPitch, tieChain, unlinkNotes, writtenTracks,
+  setLyricAt, setPitch, staffStep, stepPitch, tieChain, unlinkNotes, writtenTracks,
 } from '../midi/edit';
 import { DRUM_KIT, usesBassClef } from '../midi/parse';
 import { PIANO_NOTE } from '../tools/piano';
@@ -13,7 +13,7 @@ import { originalSong, replaceSong, saveAsNewSong } from './library';
 import { downloadMidi } from '../midi/write';
 import { previewNote, restart } from './playback';
 import {
-  editEnabled, onScoreRendered, renderScore, scoreEngraved, scoreNoteElements, scoreNoteAtLyric, scoreNoteFromSource, scoreNoteNear,
+  editEnabled, onScoreRendered, renderScore, scoreEngraved, scoreNoteElements, scoreHeadOnset, scoreNoteAtLyric, scoreNoteFromSource, scoreNoteNear,
   scoreStaffAt, scoreXAtBeat, scrollScoreBy, scrubEnabled, type ScoreNoteHit,
 } from './score';
 import { renderSections } from './sections';
@@ -58,6 +58,8 @@ interface Gesture {
   moved: boolean;
   /** The press is on a lyric: a tap edits it in place. */
   lyric?: boolean;
+  /** The beat that lyric is sung on. */
+  lyricAt?: number;
   /** What a drag that started on a note does: up or down changes pitch, sideways draws a tie or slur. */
   mode?: 'pitch' | 'curve';
   steps: number;
@@ -239,6 +241,16 @@ const lyricInput = () => $<HTMLInputElement>('editLyric');
 let lyricNote: number | undefined;
 /** Whether the lyric is being edited, in a field that sits on the score where the lyric is drawn. */
 let lyricOpen = false;
+/** The notes (one, or a chain of tied ones) and the beat of the lyric in the field. */
+let lyricIds: number[] = [], lyricAt = 0;
+/** The beat of the lyric to open next: a tied or long note can carry several. */
+let lyricWanted: number | undefined;
+
+/** The lyric a written note carries at a beat: its own, or a syllable sung later in it. */
+function lyricText(note: ScoreNoteHit['note'], q: number): string {
+  if (Math.abs(q - note.q) < .13) return note.lyric ?? '';
+  return [...note.lyricCues ?? []].sort((a, b) => Math.abs(a.q - q) - Math.abs(b.q - q)).find(cue => Math.abs(cue.q - q) < .13)?.text ?? '';
+}
 
 /** Keeps the Lyric field on the selected note's lyric, unless that same note's is being typed in. */
 function showLyric(hit: ScoreNoteHit | undefined) {
@@ -247,7 +259,10 @@ function showLyric(hit: ScoreNoteHit | undefined) {
   if (!lyricOpen) return;
   if (!hit || id === undefined) { closeLyric(); return; }
   if (id !== lyricNote) {
-    const lyric = studio.song?.edits ? findNote(studio.song.edits, id)?.note.lyric ?? '' : hit.note.lyric ?? '';
+    lyricAt = lyricWanted ?? hit.note.q;
+    lyricWanted = undefined;
+    lyricIds = [...selected];
+    const lyric = lyricText(hit.note, lyricAt);
     lyricNote = id;
     input.value = lyric;
     input.dataset.saved = lyric;
@@ -257,42 +272,72 @@ function showLyric(hit: ScoreNoteHit | undefined) {
 
 /** Puts the Lyric field over the note's lyric on the score, or where one would be drawn. */
 function placeLyric(hit: ScoreNoteHit) {
-  const element = scoreNoteElements(hit.note)[0], head = element?.querySelector('.notehead')?.getBoundingClientRect();
+  const elements = scoreNoteElements(hit.note);
+  // A tied or long note is drawn as several heads: the one that starts where this lyric is sung.
+  const element = elements.find(head => Math.abs((scoreHeadOnset(head.id) ?? hit.note.q) - lyricAt) < .13) ?? elements[0];
+  const head = element?.querySelector('.notehead')?.getBoundingClientRect();
   if (!element || !head) return;
-  const verse = element.querySelector('.verse') ?? element.closest('.chord')?.querySelector('.verse');
+  let verse = element.querySelector('.verse') ?? element.closest('.chord')?.querySelector('.verse');
   let box = verse?.getBoundingClientRect();
   if (!box) {
     // No lyric yet: line up with the lyrics of the same staff in this system, or sit just under the staff.
     const staff = element.closest('.staff'), measure = element.closest('.measure');
     const index = staff && measure ? [...measure.querySelectorAll(':scope > .staff')].indexOf(staff) : -1;
     for (const other of element.closest('.system')?.querySelectorAll('.measure') ?? []) {
-      const line = other.querySelectorAll(':scope > .staff')[index]?.querySelector('.verse')?.getBoundingClientRect();
+      verse = other.querySelectorAll(':scope > .staff')[index]?.querySelector('.verse');
+      const line = verse?.getBoundingClientRect();
       if (line) { box = new DOMRect(head.left, line.top, 0, line.height); break; }
     }
     box ??= new DOMRect(head.left, (staff?.getBoundingClientRect().bottom ?? head.bottom) + 6, 0, 18);
   }
-  const input = lyricInput(), holder = $('editLyricBox'), view = $('scoreViewport'), frame = view.getBoundingClientRect();
-  // At least 16px, so a phone doesn't zoom the page in to the field.
-  input.style.fontSize = Math.max(16, Math.min(30, box.height * .8)) + 'px';
+  const input = lyricInput(), holder = $('editLyricBox');
+  // The field is typed in the score's own lettering, and scaled to the size the lyrics are drawn at. Its
+  // own font size stays 16px, below which a phone would zoom the page in to it.
+  const drawn = verse?.querySelector('text'), words = verse?.textContent?.trim() ?? '', line = verse?.getBoundingClientRect();
+  if (drawn) input.style.fontFamily = getComputedStyle(drawn).fontFamily;
+  const natural = words ? textWidth(words) : 0;
+  lyricScale = line && natural ? Math.max(.5, Math.min(3, line.width / natural)) : lyricScale;
+  holder.style.transform = 'scale(' + lyricScale + ')';
   sizeLyric();
-  holder.style.left = box.left - frame.left + view.scrollLeft - 7 + 'px';
-  holder.style.top = box.top + box.height / 2 - frame.top + view.scrollTop - holder.offsetHeight / 2 + 'px';
+  // Placed by measuring where the holder really lands, so scrolling and zoom can't shift it: the text in
+  // the field starts where the drawn lyric does.
+  const inset = (input.offsetWidth - input.clientWidth) / 2 + parseFloat(getComputedStyle(input).paddingLeft);
+  let left = 0, top = 0;
+  for (let pass = 0; pass < 3; pass++) {
+    holder.style.left = left + 'px';
+    holder.style.top = top + 'px';
+    const at = holder.getBoundingClientRect();
+    left += box.left - inset * lyricScale - at.left;
+    top += box.top + box.height / 2 - at.top - at.height / 2;
+  }
+  holder.style.left = left + 'px';
+  holder.style.top = top + 'px';
 }
 
-/** Fits the Lyric field to its text. */
+/** How much the field is scaled to match the lyrics drawn on the score. */
+let lyricScale = 1;
+let ruler: CanvasRenderingContext2D | null | undefined;
+/** The width of a text in the Lyric field's lettering, before scaling. */
+function textWidth(text: string): number {
+  ruler ??= document.createElement('canvas').getContext('2d');
+  if (!ruler) return text.length * 8;
+  ruler.font = '16px ' + (lyricInput().style.fontFamily || 'serif');
+  return ruler.measureText(text).width;
+}
+
+/** Fits the Lyric field to its text, with room for the next letter. */
 function sizeLyric() {
   const input = lyricInput();
-  let width = 2;
-  for (const character of input.value) width += character.charCodeAt(0) > 0x2e7f ? 2 : 1.1;
-  input.style.width = Math.max(4, width) + 'ch';
+  input.style.width = Math.max(14, textWidth(input.value) + 9) + 'px';
 }
 
 /** Starts editing the selected note's lyric, in place on the score. */
-function openLyric() {
+function openLyric(at?: number) {
   const hit = selectedHit(), input = lyricInput();
   if (!hit) return;
   lyricOpen = true;
   lyricNote = undefined;
+  lyricWanted = at;
   $('editLyricBox').hidden = false;
   showLyric(hit);
   input.focus({preventScroll: true});
@@ -313,11 +358,11 @@ function closeLyric() {
 
 /** Saves what was typed in the Lyric field to its note; an empty text removes the lyric. */
 function commitLyric() {
-  const input = lyricInput(), id = lyricNote;
-  if (id === undefined || input.value.trim() === (input.dataset.saved ?? '')) return;
+  const input = lyricInput(), ids = lyricIds, at = lyricAt;
+  if (lyricNote === undefined || input.value.trim() === (input.dataset.saved ?? '')) return;
   const text = input.value;
   input.dataset.saved = text.trim();
-  commit(edits => setLyric(edits, id, text));
+  commit(edits => setLyricAt(edits, ids, at, text));
 }
 
 /** Saves the lyric and moves on to the next note of the part, staying in the field, for typing a line in. */
@@ -733,7 +778,7 @@ function finishGesture(event: PointerEvent) {
     cancelGesture();
     if (ended.lyric && ended.hit?.note.src && !linking) {
       select(withTies(ended.hit.note.src));
-      openLyric();
+      openLyric(ended.lyricAt);
       return;
     }
     // Without Note input a tap near a note selects it; with it, a tap beside a note adds one there.
@@ -799,7 +844,7 @@ export function initEditor(): void {
   const lyric = lyricInput();
   $('scoreViewport').append($('editLyricBox'));
   $('editLyricBox').addEventListener('pointerdown', event => event.stopPropagation());
-  button('editLyricOpen').addEventListener('click', openLyric);
+  button('editLyricOpen').addEventListener('click', () => openLyric());
   lyric.addEventListener('input', sizeLyric);
   // Leaving the field, for a button or anywhere else, saves the lyric and puts the field away.
   lyric.addEventListener('blur', () => setTimeout(() => { if (document.activeElement !== lyric) closeLyric(); }));
@@ -883,7 +928,7 @@ export function initEditor(): void {
     if (hit && writtenTracks(studio.song)[hit.track]?.inst === DRUM_KIT) hit = undefined;
     gesture = {
       pointer: event.pointerId, x: event.clientX, y: event.clientY, hit, spacing: staff?.spacing ?? 8,
-      lyric: !!lyric && hit === lyric, moved: false, steps: 0, scrollTop: workspace().scrollTop, touch: event.pointerType !== 'mouse',
+      lyric: !!lyric && hit === lyric, lyricAt: lyric?.q, moved: false, steps: 0, scrollTop: workspace().scrollTop, touch: event.pointerType !== 'mouse',
     };
     if (event.pointerType !== 'touch') event.preventDefault();
     try { area.setPointerCapture(event.pointerId); } catch { /* works without capture */ }

@@ -568,9 +568,9 @@ nav .song-download:hover{background:#0a84ff33;color:#409cff}
 .edit-divider { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
 .edit-foot { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
 #scoreViewport { position: relative; }
-.edit-lyric-box { position: absolute; z-index: 6; }
+.edit-lyric-box { position: absolute; left: 0; top: 0; z-index: 6; transform-origin: 0 0; }
 .edit-lyric-box[hidden] { display: none; }
-.edit-lyric-box input { display: block; box-sizing: content-box; padding: 1px 6px; border: 1.5px solid #0a84ff; border-radius: 6px; background: #fff; color: #191713; font: 16px/1.25 "Times New Roman", Georgia, "Noto Serif TC", serif; box-shadow: 0 2px 10px rgba(0, 0, 0, .22); }
+.edit-lyric-box input { display: block; box-sizing: content-box; margin: 0; padding: 1px 3px; border: 1px solid #0a84ff; border-radius: 4px; background: #fff; color: #191713; font: 16px/1.2 "Times New Roman", Georgia, "Noto Serif TC", serif; box-shadow: 0 0 0 3px rgba(10, 132, 255, .18); }
 .edit-lyric-box input:focus { outline: none; }
 #scorewrap.edit-mode #engravedScore .verse { cursor: text; }
 .edit-hint { margin: 0; font-size: 12px; color: var(--muted); min-height: 1.3em; min-width: 0; }
