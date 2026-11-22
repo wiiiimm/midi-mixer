@@ -52,14 +52,19 @@ export function writeMidi(song: Song): Uint8Array<ArrayBuffer> {
   }
   for (const marker of song.markers) conductor.push(meta(tick(marker.q), 6, text(marker.text)));
 
-  // Melodic parts share the 15 channels other than the drum channel (10).
-  let nextChannel = 0;
+  // Melodic parts use the 15 channels other than the drum channel (10). A player has one
+  // instrument per channel, so parts with the same instrument share a channel, and only
+  // a song with more than 15 different instruments has to put two on one channel.
+  const channelOf = new Map<number, number>();
   const parts = song.tracks.map(track => {
     let channel = 9;
     if (track.inst !== DRUM_KIT) {
-      channel = nextChannel % 15;
-      if (channel >= 9) channel++;
-      nextChannel++;
+      const inst = track.inst & 127;
+      if (!channelOf.has(inst)) {
+        const index = channelOf.size % 15;
+        channelOf.set(inst, index >= 9 ? index + 1 : index);
+      }
+      channel = channelOf.get(inst)!;
     }
     const events: Event[] = [meta(0, 3, text(track.name))];
     if (track.inst !== DRUM_KIT) events.push({tick: 0, order: 1, bytes: [0xc0 | channel, track.inst & 127]});
