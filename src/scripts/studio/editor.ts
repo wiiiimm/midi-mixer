@@ -3,7 +3,7 @@ import { pitchNameWithOctave } from '../lib/notes';
 import { shortcutsBlocked } from '../lib/shortcuts';
 import type { Song, SongEdits } from '../lib/types';
 import {
-  addNote, applyEdits, cloneEdits, editsFor, findNote, hasLinks, linkNotes, noteCount, pitchAtStep, pitchClashes, removeNotes,
+  addNote, applyEdits, cloneEdits, editsFor, findNote, hasLinks, linkNotes, lyricTextAt, noteCount, pitchAtStep, pitchClashes, removeNotes,
   setLyricAt, setPitch, staffStep, stepPitch, tieChain, unlinkNotes, writtenTracks,
 } from '../midi/edit';
 import { DRUM_KIT, usesBassClef } from '../midi/parse';
@@ -262,7 +262,9 @@ function showLyric(hit: ScoreNoteHit | undefined) {
     lyricAt = lyricWanted ?? hit.note.q;
     lyricWanted = undefined;
     lyricIds = [...selected];
-    const lyric = lyricText(hit.note, lyricAt);
+    // A tie chain is selected through its first note, but the lyric may belong to a later one.
+    const edits = studio.song?.edits;
+    const lyric = (edits && lyricTextAt(edits, lyricIds, lyricAt)) ?? lyricText(hit.note, lyricAt);
     lyricNote = id;
     input.value = lyric;
     input.dataset.saved = lyric;
