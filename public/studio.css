@@ -515,7 +515,7 @@ select:disabled{opacity:.45;cursor:default}
 /* Playlist rows: select the song, or remove it from this browser */
 .song-row{position:relative;display:flex;align-items:center;margin:2px 0}
 .song-row[hidden]{display:none}
-.song-row .song{flex:1;min-width:0;margin:0;padding-right:38px}
+.song-row .song{flex:1;min-width:0;margin:0;padding-right:66px}
 nav .song-remove{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px;height:26px;margin:0;padding:0;display:grid;place-items:center;border-radius:50%;background:transparent;color:var(--muted);opacity:0;transition:opacity .15s,background .15s}
 .song-remove svg{width:12px;height:12px;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;fill:none}
 .song-row:hover .song-remove,.song-remove:focus-visible{opacity:1}
@@ -523,6 +523,13 @@ nav .song-remove:hover{background:#ff453a33;color:#ff6961}
 .song-row .song.active~.song-remove{color:#ffffffd9}
 .song-row .song.active~.song-remove:hover{background:#ffffff33;color:#fff}
 @media (hover:none){nav .song-remove{opacity:1}}
+nav .song-download{position:absolute;right:34px;top:50%;transform:translateY(-50%);width:26px;height:26px;margin:0;padding:0;display:grid;place-items:center;border-radius:50%;background:transparent;color:var(--muted);opacity:0;transition:opacity .15s,background .15s}
+.song-download svg{width:13px;height:13px;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;fill:none}
+.song-row:hover .song-download,.song-download:focus-visible{opacity:1}
+nav .song-download:hover{background:#0a84ff33;color:#409cff}
+.song-row .song.active~.song-download{color:#ffffffd9}
+.song-row .song.active~.song-download:hover{background:#ffffff33;color:#fff}
+@media (hover:none){nav .song-download{opacity:1}}
 .restore-samples{background:transparent;border:0;color:var(--accent);font-size:13px;padding:6px 0;text-align:left}
 .restore-samples:hover{text-decoration:underline;filter:none}
 /* Section bar: its own row of chips (from the MIDI markers) that scrolls sideways,
@@ -567,3 +574,7 @@ nav .song-remove:hover{background:#ff453a33;color:#ff6961}
 }
 /* Room for the Edit button on the narrowest phones: the bar number is also in the BAR : BEAT readout above. */
 @media(max-width:374px){ #bars{display:none} .view-tools button,#keytoggle,#followScore,#scrubScore,#editScore{min-width:30px;padding-inline:4px} .view-tools{gap:1px} }
+#engravedScore .note.edit-target, #engravedScore .note.edit-target * { color: #30d158; fill: #30d158; }
+.edit-curve { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 30; overflow: visible; }
+.edit-curve[hidden] { display: none; }
+.edit-curve path { fill: none; stroke: #ff9f0a; stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 5 4; }

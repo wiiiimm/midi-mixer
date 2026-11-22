@@ -3,17 +3,21 @@
 ---
   <div id="editBar" class="edit-bar" hidden>
     <div class="edit-tools" role="toolbar" aria-label="Edit notes">
-      <label>Length <select id="editLength" aria-label="Length of new notes"><option value="4">Whole</option><option value="3">Dotted half</option><option value="2">Half</option><option value="1.5">Dotted quarter</option><option value="1" selected>Quarter</option><option value="0.75">Dotted eighth</option><option value="0.5">Eighth</option><option value="0.25">Sixteenth</option></select></label>
+      <label>Note value <select id="editLength" aria-label="Note value"><option value="4">Semibreve</option><option value="3">Dotted minim</option><option value="2">Minim</option><option value="1.5">Dotted crotchet</option><option value="1" selected>Crotchet</option><option value="0.75">Dotted quaver</option><option value="0.5">Quaver</option><option value="0.25">Semiquaver</option></select></label>
       <span class="edit-divider" aria-hidden="true"></span>
-      <button id="editDown" type="button" title="Lower the selected note a semitone" aria-label="Lower a semitone" disabled>♭</button>
-      <button id="editUp" type="button" title="Raise the selected note a semitone" aria-label="Raise a semitone" disabled>♯</button>
-      <button id="editLink" type="button" aria-pressed="false" title="Link the selected note to another: the same pitch ties, a different pitch slurs" disabled>⌒ Link</button>
-      <button id="editUnlink" type="button" title="Remove the selected note’s ties and slurs" disabled>Unlink</button>
+      <button id="editDown" type="button" title="Flatten: lower the selected note a semitone" aria-label="Flatten (lower a semitone)" disabled>♭</button>
+      <button id="editUp" type="button" title="Sharpen: raise the selected note a semitone" aria-label="Sharpen (raise a semitone)" disabled>♯</button>
+      <button id="editLink" type="button" aria-pressed="false" title="Tie or slur the selected note to another: the same pitch makes a tie, a different pitch a slur. You can also drag from one note to the other." disabled>⌒ Tie / Slur</button>
+      <button id="editUnlink" type="button" title="Remove the selected note’s ties and slurs" aria-label="Remove tie or slur" disabled><span aria-hidden="true">⌒̸</span> <span class="label">Remove tie / slur</span></button>
       <button id="editDelete" type="button" title="Delete the selected note (Delete key)" aria-label="Delete" disabled><span aria-hidden="true">✕</span> <span class="label">Delete</span></button>
       <span class="edit-divider" aria-hidden="true"></span>
       <button id="editUndo" type="button" title="Undo (Ctrl/⌘ Z)" aria-label="Undo" disabled>↶ <span class="label">Undo</span></button>
       <button id="editRedo" type="button" title="Redo (Shift Ctrl/⌘ Z)" aria-label="Redo" disabled>↷ <span class="label">Redo</span></button>
       <button id="editReset" type="button" title="Go back to the song’s original MIDI file" aria-label="Reset to original" disabled>⟲ <span class="label">Reset to original</span></button>
+      <span class="edit-divider" aria-hidden="true"></span>
+      <button id="editSaveAs" type="button" title="Save the song as it is now as a new song in your playlist" aria-label="Save as new song">＋ <span class="label">Save as new</span></button>
+      <button id="editDownload" type="button" title="Download the song as it is now as a MIDI file" aria-label="Download .mid">⤓ <span class="label">Download .mid</span></button>
     </div>
     <p id="editHint" class="edit-hint" aria-live="polite"></p>
   </div>
+  <svg id="editCurve" class="edit-curve" aria-hidden="true" hidden><path /></svg>

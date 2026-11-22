@@ -53,14 +53,15 @@ Turn on **Scrub** to scrub through the song as you would in an audio or video ed
 
 Turn on **Edit** (the pencil beside Scrub) to change the notes of the loaded song on the score. The original MIDI file is always kept as it was, so you can go back to it at any time.
 
-- **Add a note:** tap or click an empty spot on a staff. The note goes into that part, at the line or space you tapped, using the key signature’s sharps or flats. Choose its length from **Length** first; it snaps to that length within the bar.
-- **Select a note:** tap or click it. It turns orange and you hear it. Changing **Length** then changes the selected note too.
-- **Change its pitch:** drag the note up or down. It moves along the scale of the key, and you hear each step. **♭** and **♯** move it by a semitone instead. On a computer, the arrow keys move it by a step, or a semitone with Shift.
-- **Tie or slur:** select a note, tap **Link**, then tap another note in the same part. Two notes of the same pitch are tied and play as one sustained note; notes of different pitches are slurred. **Unlink** removes the selected note’s ties and slurs. Dragging a tied note moves the whole tie with it.
+- **Add a note:** tap or click an empty spot on a staff. The note goes into that part, at the line or space you tapped, using the key signature’s sharps or flats. Choose its **Note value** (semibreve to semiquaver, including dotted values) first; it snaps to that value within the bar.
+- **Select a note:** tap or click it. It turns orange and you hear it. Changing **Note value** then changes the selected note too.
+- **Change its pitch:** drag the note up or down. It moves along the scale of the key, and you hear each step. **♭** and **♯** flatten or sharpen it by a semitone instead. On a computer, the arrow keys move it by a step, or a semitone with Shift.
+- **Tie or slur:** drag sideways from one note to another note in the same part, or select a note, tap **Tie / Slur** and tap the other note. Two notes of the same pitch are joined by a tie and play as one sustained note; notes of different pitches are joined by a slur. **Remove tie / slur** takes them off the selected note. Dragging a tied note up or down moves the whole tie with it.
 - **Delete:** tap **✕ Delete** or press Delete or Backspace.
+- **Download or save as new:** **Download .mid** saves the song as it is now as a MIDI file (also available from the download button on each song in the playlist). **Save as new** asks for a name and adds the edited song to your playlist as a new song; its own reset point is the version you saved, and the song you started from is unchanged. Tied notes are written to the file as one sustained note, and slurs aren’t kept, because MIDI files have no slurs.
 - **Undo, redo and reset:** **↶** and **↷** step back and forward through your edits (Ctrl/⌘ Z and Shift Ctrl/⌘ Z on a computer). **Reset to original** goes back to the song’s original MIDI; Undo brings your edits back.
 
-Edits are saved with the song in this browser, and the song shows **Edited** beside its bar count. Playback, the practice piano highlights and the staff labels all follow the edited notes. On a touch screen in Edit mode, sideways swipes still scroll the score, up and down drags move notes (or scroll the staves when you start on an empty spot), and pinching still zooms. Editing needs the engraved score, and drum parts can’t be edited.
+Edits are saved with the song in this browser, and the song shows **Edited** beside its bar count. Playback, the practice piano highlights and the staff labels all follow the edited notes. On a touch screen in Edit mode, up and down drags on a note change its pitch and sideways drags on a note draw a tie or slur, while drags that start on an empty spot scroll the score, and pinching still zooms. Editing needs the engraved score, and drum parts can’t be edited.
 
 MIDI files are engraved in the browser as grouped staves with connected barlines, beams, rests and ties. The display uses part names, key signatures, lyrics and rehearsal markers when the MIDI provides them. MIDI playback uses the original timing.
 

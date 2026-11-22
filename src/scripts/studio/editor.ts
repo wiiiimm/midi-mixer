@@ -8,7 +8,8 @@ import {
 } from '../midi/edit';
 import { DRUM_KIT, usesBassClef } from '../midi/parse';
 import { notify } from '../ui/toast';
-import { originalSong, replaceSong } from './library';
+import { originalSong, replaceSong, saveAsNewSong } from './library';
+import { downloadMidi } from '../midi/write';
 import { previewNote, restart } from './playback';
 import {
   editEnabled, onScoreRendered, renderScore, scoreEngraved, scoreNoteElements, scoreNoteFromSource, scoreNoteNear,
@@ -46,7 +47,10 @@ interface Gesture {
   /** Staff line distance in pixels, for turning a drag into scale steps. */
   spacing: number;
   moved: boolean;
+  /** What a drag that started on a note does: up or down changes pitch, sideways draws a tie or slur. */
+  mode?: 'pitch' | 'curve';
   steps: number;
+  target?: ScoreNoteHit;
   scrollTop: number;
 }
 let gesture: Gesture | undefined;
@@ -169,9 +173,9 @@ function refreshControls() {
   if (!on || !song) return;
   const sf = hit ? song.keyAt(hit.note.q).sf : 0;
   $('editHint').textContent = linking && hit ?
-    'Tap another note in this part to link it: the same pitch ties, a different pitch slurs.' :
-    hit ? pitchNameWithOctave(hit.note.p, sf) + ' in ' + song.tracks[hit.track].name + ' selected. Drag it up or down to change its pitch.' :
-    'Tap a staff to add a note, or tap a note to select it.';
+    'Tap another note in this part: the same pitch makes a tie, a different pitch a slur.' :
+    hit ? pitchNameWithOctave(hit.note.p, sf) + ' in ' + song.tracks[hit.track].name + ' selected. Drag it up or down to change its pitch, or sideways to another note to tie or slur them.' :
+    'Tap a staff to add a note, or tap a note to select it. Drag a note sideways to another note to tie or slur them.';
 }
 
 function setEditing(on: boolean) {
@@ -217,22 +221,31 @@ function addAt(clientX: number, clientY: number) {
   }
 }
 
+/** Joins two notes with a tie (same pitch) or a slur (different pitches), then selects the first. */
+function joinNotes(a: ScoreNoteHit, b: ScoreNoteHit) {
+  if (!a.note.src || !b.note.src) return;
+  const one = withTies(a.note.src), two = withTies(b.note.src);
+  linking = false;
+  if (one.includes(two[0])) { refreshControls(); return; }
+  // From the end of the earlier note's tie chain to the start of the later one's.
+  const [from, to] = a.note.q <= b.note.q ? [one, two] : [two, one];
+  let result = '';
+  commit(edits => {
+    result = linkNotes(edits, from[from.length - 1], to[0]);
+    return result === 'tie' || result === 'slur';
+  });
+  if (result === 'other-part') notify('Ties and slurs join notes in the same part.');
+  else if (result === 'same-note') notify('Ties and slurs join notes that start at different times.');
+  else if (result === 'tie') notify('Tied: the notes now play as one sustained note.');
+  else if (result === 'slur') notify('Slurred.');
+  select(from);
+}
+
 function tapNote(hit: ScoreNoteHit) {
   if (!hit.note.src) return;
   const ids = withTies(hit.note.src), current = selectedHit();
   if (linking && current && !selected.includes(ids[0])) {
-    // Link from the end of the earlier note's tie chain to the start of the later one's.
-    const [from, to] = current.note.q <= hit.note.q ? [selected, ids] : [ids, selected];
-    let result = '';
-    commit(edits => {
-      result = linkNotes(edits, from[from.length - 1], to[0]);
-      return result === 'tie' || result === 'slur';
-    });
-    if (result === 'other-part') notify('Link notes in the same part.');
-    else if (result === 'tie') notify('Tied: the notes now play as one sustained note.');
-    else if (result === 'slur') notify('Slurred.');
-    linking = false;
-    keepSelection();
+    joinNotes(current, hit);
     return;
   }
   select(ids);
@@ -303,10 +316,34 @@ function previewDrag(steps: number) {
   gesture.steps = steps;
 }
 
+/** While dragging sideways from a note: a curve from it to the pointer, and the note it would join. */
+function previewCurve(clientX: number, clientY: number) {
+  if (!gesture?.hit) return;
+  const head = scoreNoteElements(gesture.hit.note)[0]?.querySelector('.notehead')?.getBoundingClientRect();
+  if (!head) return;
+  const x = head.left + head.width / 2, y = head.top + head.height / 2;
+  const radius = Math.max(16, gesture.spacing * 1.4);
+  const target = scoreNoteNear(clientX, clientY, radius);
+  const valid = target && target.track === gesture.hit.track && target.note !== gesture.hit.note ? target : undefined;
+  if (gesture.target?.note !== valid?.note) {
+    for (const element of document.querySelectorAll('#engravedScore .edit-target')) element.classList.remove('edit-target');
+    if (valid) for (const element of scoreNoteElements(valid.note)) element.classList.add('edit-target');
+  }
+  gesture.target = valid;
+  const lift = Math.min(40, Math.max(12, Math.abs(clientX - x) * .25));
+  const curve = $('editCurve');
+  curve.hidden = false;
+  curve.querySelector('path')!.setAttribute('d', 'M' + x + ' ' + (y - 6) + ' Q' + (x + clientX) / 2 + ' ' + (Math.min(y, clientY) - lift) + ' ' + clientX + ' ' + (clientY - 6));
+  $('editHint').textContent = !valid ? 'Drag to another note in this part, then let go.' :
+    valid.note.p === gesture.hit.note.p ? 'Let go to tie these notes.' : 'Let go to slur these notes.';
+}
+
 function cancelGesture() {
   if (gesture?.hit) {
     for (const element of chainElements(gesture.hit)) element.removeAttribute('transform');
   }
+  for (const element of document.querySelectorAll('#engravedScore .edit-target')) element.classList.remove('edit-target');
+  $('editCurve').hidden = true;
   gesture = undefined;
 }
 
@@ -320,8 +357,12 @@ function finishGesture(event: PointerEvent) {
     else addAt(event.clientX, event.clientY);
     return;
   }
-  const steps = ended.steps, hit = ended.hit;
+  const steps = ended.steps, hit = ended.hit, target = ended.target;
   cancelGesture();
+  if (ended.mode === 'curve') {
+    if (hit && target) joinNotes(hit, target); else refreshControls();
+    return;
+  }
   if (hit?.note.src && steps) {
     select(hit.note.src);
     moveSelected(steps, false);
@@ -355,6 +396,14 @@ export function initEditor(): void {
     notify('Reset to the original MIDI.', 'Undo', undo);
   });
   $('editLength').addEventListener('change', setSelectedLength);
+  button('editDownload').addEventListener('click', () => { if (studio.song) downloadMidi(studio.song); });
+  button('editSaveAs').addEventListener('click', () => {
+    const song = studio.song;
+    if (!song) return;
+    const name = prompt('Name for the new song', song.title + (song.edits ? ' (edited)' : ' (copy)'))?.trim();
+    if (!name) return;
+    void saveAsNewSong(song, name).then(saved => notify('Saved “' + saved.title + '”. Reset now returns to this version.'));
+  });
 
   area.addEventListener('pointerdown', event => {
     if (!editEnabled() || !studio.song) return;
@@ -380,9 +429,17 @@ export function initEditor(): void {
     const dx = event.clientX - gesture.x, dy = event.clientY - gesture.y;
     if (!gesture.moved && Math.hypot(dx, dy) > 6) gesture.moved = true;
     if (!gesture.moved) return;
-    if (gesture.hit?.note.src) previewDrag(Math.round(-dy / (gesture.spacing / 2)));
-    else if (event.pointerType === 'touch') workspace().scrollTop = gesture.scrollTop - dy;
+    if (gesture.hit?.note.src) {
+      gesture.mode ??= Math.abs(dy) >= Math.abs(dx) ? 'pitch' : 'curve';
+      if (gesture.mode === 'pitch') previewDrag(Math.round(-dy / (gesture.spacing / 2)));
+      else previewCurve(event.clientX, event.clientY);
+    } else if (event.pointerType === 'touch') workspace().scrollTop = gesture.scrollTop - dy;
   });
+  // A drag that starts on a note belongs to the editor in every direction, so the
+  // browser must not take a sideways one for scrolling the score.
+  area.addEventListener('touchmove', event => {
+    if (gesture?.hit && editEnabled() && event.cancelable) event.preventDefault();
+  }, {passive: false});
   area.addEventListener('pointerup', finishGesture);
   area.addEventListener('pointercancel', event => {
     if (gesture && event.pointerId === gesture.pointer) { cancelGesture(); refreshControls(); }
