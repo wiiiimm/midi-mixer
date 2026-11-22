@@ -18,6 +18,8 @@ interface HeldKey { key: HTMLElement; voice?: StoppableVoice }
 
 const shortcuts = "AWSEDFTGYHUJKOLP;'";
 const shortcutCodes = [...shortcuts].map(key => ({';': 'Semicolon', "'": 'Quote'} as Record<string, string>)[key] ?? 'Key' + key);
+/** Sent on the document, with the MIDI pitch, each time a piano key is played. */
+export const PIANO_NOTE = 'piano-note';
 const WHITE_KEYS = 77;
 const MIDDLE_C = 60;
 
@@ -139,6 +141,10 @@ export function initPiano(): void {
     clearSustained();
     for (const id of [...held.keys()]) release(id);
   }
+  /** Tells Note input in Edit mode (see studio/editor.ts) that a key was played, not dragged to scroll. */
+  const played = (key: HTMLElement | undefined) => {
+    if (key) document.dispatchEvent(new CustomEvent<number>(PIANO_NOTE, {detail: Number(key.dataset.pitch)}));
+  };
   async function press(id: unknown, key: HTMLElement | undefined) {
     if (!key || held.has(id)) return;
     const program = Number(voiceSelect.value), pitch = Number(key.dataset.pitch);
@@ -223,6 +229,8 @@ export function initPiano(): void {
         viewport.scrollLeft = gesture.left - distance;
       };
       key.onpointerup = key.onpointercancel = key.onlostpointercapture = e => {
+        // A press that ends without turning into a scroll counts as a played note.
+        if (e.type === 'pointerup' && gestures.get(e.pointerId)?.dragging === false) played(key);
         gestures.delete(e.pointerId);
         release(e.pointerId, e.type === 'pointerup');
       };
@@ -230,6 +238,7 @@ export function initPiano(): void {
       key.onclick = e => {
         if (e.detail !== 0) return;
         const id = Symbol();
+        played(key);
         press(id, key);
         setTimeout(() => release(id, true), 400);
       };
@@ -265,7 +274,10 @@ export function initPiano(): void {
     const i = shortcutCodes.indexOf(e.code);
     if (i < 0) return;
     e.preventDefault();
-    if (!e.repeat) press(e.code, buttons[i]);
+    if (!e.repeat) {
+      played(buttons[i]);
+      press(e.code, buttons[i]);
+    }
   });
   window.addEventListener('keyup', e => release(e.code, true));
   $('keytoggle').addEventListener('click', () => {

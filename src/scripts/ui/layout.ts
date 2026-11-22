@@ -90,7 +90,7 @@ export function initLayout(): void {
   });
   // Picking a song should reveal the score again.
   $('files').addEventListener('click', e => {
-    if (compact.matches && (e.target as Element).closest('button')) setOpen(false, false);
+    if (compact.matches && (e.target as Element).closest('button:not(.song-download)')) setOpen(false, false);
   });
   // Swipe left on the open drawer to dismiss it.
   let swipe: {x: number; y: number} | null = null;

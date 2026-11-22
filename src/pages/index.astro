@@ -11,6 +11,7 @@ import SoundCheckPiano from '../components/studio/SoundCheckPiano.astro';
 import SplashScreen from '../components/studio/SplashScreen.astro';
 import TrackMixer from '../components/studio/TrackMixer.astro';
 import TransportBar from '../components/studio/TransportBar.astro';
+import EditBar from '../components/studio/EditBar.astro';
 import TuningForkPanel from '../components/studio/TuningForkPanel.astro';
 import PitchDetectorPanel from '../components/studio/PitchDetectorPanel.astro';
 ---
@@ -30,6 +31,7 @@ import PitchDetectorPanel from '../components/studio/PitchDetectorPanel.astro';
 <main>
   <TransportBar />
   <RehearsalToolbar />
+  <EditBar />
   <input id="seek" type="range" min="0" step=".01" value="0" aria-label="Playback position">
   <div class="workspace">
     <div class="lanes">

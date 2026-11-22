@@ -1,6 +1,7 @@
 import { $, esc } from '../lib/dom';
 import { isBlackKey, pitchName, pitchNameWithOctave, solfaNames, spellPitch, trackColours } from '../lib/notes';
 import type { Bar, KeySignature, Note, Song, StaffLabelMode } from '../lib/types';
+import { writtenTracks } from '../midi/edit';
 import { clefs } from '../score/clefs';
 import type { Engraver } from '../score/engraver';
 import { whileBusy } from '../ui/loading';
@@ -34,6 +35,8 @@ interface EngravedView {
   mode: StaffLabelMode;
   measures: Map<string, number>;
   timing: Map<string, {start: number; end: number}>;
+  owners: Map<string, {note: Note; track: number}>;
+  heads: Map<Note, string[]>;
   active: Set<string>;
   geometry: Map<number, BarGeometry>;
   cueMarker: HTMLElement;
@@ -67,6 +70,10 @@ const barWidth = () => (scoreWidth - scoreStart - rightMargin) / barsPerPage;
 const workspace = () => $('scorewrap').closest('.workspace')!;
 export const followEnabled = (): boolean => $('followScore').getAttribute('aria-pressed') === 'true';
 export const scrubEnabled = (): boolean => $('scrubScore').getAttribute('aria-pressed') === 'true';
+export const editEnabled = (): boolean => $('editScore').getAttribute('aria-pressed') === 'true';
+let onRendered: () => void = () => {};
+/** Calls back after every render, engraved or not (for example to restore the editor's selection). */
+export const onScoreRendered = (listener: () => void): void => { onRendered = listener; };
 
 export function setEngraver(engraver: Engraver): void {
   engrave = engraver;
@@ -88,15 +95,18 @@ function fitScore() {
   }
 }
 
-/** Renders the selected song (engraved if possible, otherwise the fallback). */
-export function renderScore(): void {
+/**
+ * Renders the selected song (engraved if possible, otherwise the fallback). With
+ * `keepView`, a changed song (after an edit) keeps the scroll position of the one before.
+ */
+export function renderScore(keepView = false): void {
   const song = studio.song;
   if (!song) return;
   if (engrave && scoreWidth) {
     const mode = staffMode();
     if (engravedView?.song === song && engravedView.mode === mode) return;
     try {
-      renderEngraved(song, mode, engrave);
+      renderEngraved(song, mode, engrave, keepView);
       return;
     } catch (error) {
       console.warn('Engraving fell back to the rehearsal score', error);
@@ -106,11 +116,12 @@ export function renderScore(): void {
   viewport().hidden = $('engravedTitle').hidden = true;
   $('score').removeAttribute('hidden');
   renderFallback(song);
+  onRendered();
 }
 
-function renderEngraved(song: Song, mode: StaffLabelMode, engraver: Engraver) {
+function renderEngraved(song: Song, mode: StaffLabelMode, engraver: Engraver, keepView: boolean) {
   const host = engravedScore(), scroller = viewport();
-  const previous = engravedView?.song === song ? engravedView : undefined;
+  const previous = engravedView && (engravedView.song === song || keepView) ? engravedView : undefined;
   const scroll = scroller.scrollLeft;
   const index = previous ? scoreBarAtX(scroll / zoom) : 0;
   const offset = previous ? (scroll - previous.geometry.get(index)!.left * zoom) * liveScale : 0;
@@ -118,7 +129,7 @@ function renderEngraved(song: Song, mode: StaffLabelMode, engraver: Engraver) {
   clearTimeout(liveTimer);
   zoom = clampZoom(zoom * liveScale);
   liveScale = 1;
-  const {svg, measures, timing} = engraver(song, mode);
+  const {svg, measures, timing, owners, heads} = engraver(song, mode);
   host.innerHTML = '<div class="score-layer">' + svg + '</div>';
   const layer = host.firstElementChild as HTMLElement, notation = layer.querySelector('svg')!;
   $('engravedTitle').textContent = song.title;
@@ -129,16 +140,18 @@ function renderEngraved(song: Song, mode: StaffLabelMode, engraver: Engraver) {
     '<div class="score-position cue-marker" aria-hidden="true" hidden><span>Cue</span></div>' +
     '<div class="score-position playhead-marker" aria-hidden="true" hidden></div>');
   engravedView = {
-    song, mode, measures, timing, active: new Set(), geometry: new Map(),
+    song, mode, measures, timing, owners, heads, active: new Set(), geometry: new Map(),
     svg: notation, width: notation.viewBox.baseVal.width, height: notation.viewBox.baseVal.height, origin: {x: 0, y: 0},
     layer, cueMarker: layer.querySelector('.cue-marker')!, playheadMarker: layer.querySelector('.playhead-marker')!,
   };
   sizeEngraving(engravedView);
   cacheScorePositions(engravedView, song);
-  scroller.scrollLeft = previous ? engravedView.geometry.get(index)!.left * zoom + offset : 0;
+  const kept = engravedView.geometry.get(Math.min(index, engravedView.geometry.size - 1));
+  scroller.scrollLeft = previous && kept ? kept.left * zoom + offset : 0;
   updateCursor();
   if (!previous && studio.pos > 0) revealPlayhead(engravedView.playheadX ?? 0);
   updateVisibleBars();
+  onRendered();
 }
 
 function sizeEngraving(view: EngravedView) {
@@ -370,6 +383,107 @@ function fallbackBeatAt(song: Song, clientX: number, clamp: boolean): number | u
   return start + Math.max(0, Math.min(end, ratio)) * length;
 }
 
+// ── Editing support: finding notes and staff positions on the engraving ──
+
+/** Whether the engraved score is showing (editing needs it). */
+export const scoreEngraved = (): boolean => !!engravedView;
+
+export interface ScoreNoteHit { note: Note; track: number }
+
+/** The engraved note whose head is nearest a screen point, within `radius` pixels. */
+export function scoreNoteNear(clientX: number, clientY: number, radius: number): ScoreNoteHit | undefined {
+  const view = engravedView;
+  if (!view) return;
+  const point = scorePointAt(clientX, clientY)!, index = scoreBarAtX(point.x);
+  let best: ScoreNoteHit | undefined, bestDistance = radius;
+  for (let bar = Math.max(0, index - 1); bar <= index + 1; bar++) {
+    const measure = document.getElementById('midi-bar-' + bar);
+    if (!measure) continue;
+    for (const element of measure.querySelectorAll<SVGGElement>('.note')) {
+      const owner = view.owners.get(element.id), head = element.querySelector('.notehead');
+      if (!owner || !head) continue;
+      const box = head.getBoundingClientRect();
+      const distance = Math.hypot(box.left + box.width / 2 - clientX, box.top + box.height / 2 - clientY);
+      if (distance < bestDistance) { bestDistance = distance; best = owner; }
+    }
+  }
+  return best;
+}
+
+/** The note a lyric drawn on the score belongs to, given the lyric's element or one inside it, and the beat it is sung on. */
+export function scoreNoteAtLyric(element: Element): (ScoreNoteHit & {q: number}) | undefined {
+  const verse = element.closest('.verse');
+  const note = verse?.closest('.note') ?? verse?.closest('.chord')?.querySelector('.note');
+  const owner = note && engravedView?.owners.get(note.id);
+  return owner ? {...owner, q: engravedView!.timing.get(note.id)?.start ?? owner.note.q} : undefined;
+}
+
+/** The beat a drawn notehead starts on: a long or tied note is drawn as several. */
+export const scoreHeadOnset = (id: string): number | undefined => engravedView?.timing.get(id)?.start;
+
+/** The note elements that draw a song note. */
+export function scoreNoteElements(note: Note): SVGGElement[] {
+  return (engravedView?.heads.get(note) ?? []).flatMap(id => {
+    const element = document.getElementById(id);
+    return element instanceof SVGGElement ? [element] : [];
+  });
+}
+
+/** Finds the written note drawn for an edit note id. */
+export function scoreNoteFromSource(id: number): ScoreNoteHit | undefined {
+  const song = engravedView?.song;
+  if (!song) return;
+  const tracks = writtenTracks(song);
+  for (let track = 0; track < tracks.length; track++) {
+    const note = tracks[track].notes.find(n => n.src?.includes(id));
+    if (note) return {note, track};
+  }
+}
+
+export interface ScoreStaffHit {
+  track: number;
+  /** The beat under the pointer, and the bar it is in. */
+  beat: number;
+  bar: number;
+  /** Staff lines and spaces counted up from the top line (0), in half spaces. */
+  offset: number;
+  /** Distance between staff lines, in screen pixels. */
+  spacing: number;
+  /** Screen y of the staff's top line. */
+  top: number;
+}
+
+/** The staff position (track, beat and line or space) under a screen point. */
+export function scoreStaffAt(clientX: number, clientY: number): ScoreStaffHit | undefined {
+  const song = studio.song, view = engravedView;
+  if (!song || !view) return;
+  const point = scorePointAt(clientX, clientY)!, index = scoreBarAtX(point.x), bar = view.geometry.get(index);
+  const measure = document.getElementById('midi-bar-' + index);
+  if (!bar || !measure || point.x < bar.left - 4 || point.x > bar.right + 4) return;
+  let best: ScoreStaffHit | undefined, bestDistance = Infinity;
+  [...measure.querySelectorAll<SVGGElement>(':scope > .staff')].forEach((staff, track) => {
+    const lines = [...staff.children].filter((child): child is SVGPathElement => child instanceof SVGPathElement).slice(0, 5);
+    if (lines.length < 5) return;
+    const top = lines[0].getBoundingClientRect().top, bottom = lines[4].getBoundingClientRect().top;
+    const spacing = (bottom - top) / 4;
+    const distance = clientY < top ? top - clientY : clientY > bottom ? clientY - bottom : 0;
+    if (distance < bestDistance && distance <= spacing * 4) {
+      bestDistance = distance;
+      best = {track, beat: interpolate(bar.anchors, Math.max(bar.left, point.x), 1), bar: index,
+        offset: Math.round((top - clientY) / (spacing / 2)), spacing, top};
+    }
+  });
+  return best;
+}
+
+/** The screen x of a beat on the engraving (between engraved onsets it is an estimate). */
+export function scoreXAtBeat(beat: number): number | undefined {
+  const song = studio.song, view = engravedView;
+  const bar = song && view?.geometry.get(barAt(song, beat));
+  if (!view || !bar) return;
+  return view.svg.getBoundingClientRect().left + interpolate(bar.anchors, beat, 0) * scoreZoom();
+}
+
 /** Scrolls the engraved score sideways by dx pixels; returns whether it moved. */
 export function scrollScoreBy(dx: number): boolean {
   if (!engravedView) return false;
@@ -448,7 +562,7 @@ export function initScore(seek: (seconds: number, setCue: boolean) => void): voi
   // In scrub mode the pointer handlers in scrub.ts move the playhead instead.
   engravedScore().addEventListener('click', event => {
     const song = studio.song, view = engravedView;
-    if (!song || !view || scrubEnabled()) return;
+    if (!song || !view || scrubEnabled() || editEnabled()) return;
     const note = (event.target as Element).closest('.note, .chord');
     let beat = note ? view.timing.get(note.id)?.start : undefined;
     if (beat === undefined) {
@@ -462,7 +576,7 @@ export function initScore(seek: (seconds: number, setCue: boolean) => void): voi
   });
   $('score').addEventListener('click', event => {
     const song = studio.song;
-    if (!song || scrubEnabled()) return;
+    if (!song || scrubEnabled() || editEnabled()) return;
     const beat = fallbackBeatAt(song, event.clientX, false);
     if (beat !== undefined) onSeek(song.seconds(beat), event.shiftKey);
   });

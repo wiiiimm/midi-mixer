@@ -1,7 +1,9 @@
 import { loadInstrument } from '../audio/sampler';
 import { $, esc, formatTime } from '../lib/dom';
-import type { Song } from '../lib/types';
+import type { Song, SongEdits } from '../lib/types';
+import { applyEdits, editsFit } from '../midi/edit';
 import { parseMidi } from '../midi/parse';
+import { downloadMidi, writeMidi } from '../midi/write';
 import { bundledSongs } from '../midi/repertoire';
 import { syncMetronome } from '../tools/metronome-window';
 import { whileBusy } from '../ui/loading';
@@ -25,6 +27,8 @@ interface StoredFile {
   data: ArrayBuffer;
   /** When it joined the playlist; sets the playlist order. */
   added?: number;
+  /** The user's edits. `data` always keeps the original MIDI file to reset to. */
+  edits?: SongEdits;
 }
 
 const DB_NAME = 'partbook-midi', SCORES = 'scores', PREFS = 'prefs';
@@ -99,10 +103,59 @@ function noteSessionOnly(pending: readonly StoredFile[]): void {
 const files = new Map<string, StoredFile>();
 
 function songFrom(file: StoredFile): Song {
-  const song = parseMidi(file.data, file.name);
+  let song = parseMidi(file.data, file.name);
   song.id = file.id;
+  if (editsFit(file.edits, song.tracks.length)) {
+    try { song = applyEdits(song, file.edits); } catch { /* edits that no longer apply are ignored */ }
+  }
   files.set(file.id, file);
   return song;
+}
+
+/**
+ * Adds an edited song to the playlist as a new song with its own name. Its MIDI file is
+ * the edited version, so that becomes its reset point; the song it came from is unchanged.
+ */
+export async function saveAsNewSong(song: Song, name: string): Promise<Song> {
+  const bytes = writeMidi(song);
+  const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+  const stored: StoredFile = {id: 'saved:' + Date.now() + ':' + Math.random().toString(36).slice(2, 8), name, data, added: Date.now()};
+  const saved = songFrom(stored);
+  // Parts left with no notes are not written, so carry over the mixer settings of the parts that remain.
+  const kept = song.tracks.flatMap((track, index) => track.notes.length ? [index] : []);
+  const mix = song.mix;
+  saved.mix = mix && mix.length === song.tracks.length && kept.length === saved.tracks.length ?
+    kept.map(index => ({...mix[index], selected: false})) : undefined;
+  studio.songs.push(saved);
+  selectSong(saved);
+  refreshLibrary();
+  if (!await saveFile(stored)) noteSessionOnly([stored]);
+  return saved;
+}
+
+/** The song as its original MIDI file, without edits. */
+export function originalSong(song: Song): Song | undefined {
+  const file = song.id ? files.get(song.id) : undefined;
+  if (!file) return;
+  const original = parseMidi(file.data, file.name);
+  original.id = file.id;
+  return original;
+}
+
+/**
+ * Puts an edited (or reset) version of a song in its place in the playlist and saves
+ * its edits, keeping the mixer settings. Returns whether the edits were saved.
+ */
+export async function replaceSong(song: Song, next: Song): Promise<boolean> {
+  next.mix = song.mix;
+  const index = studio.songs.indexOf(song);
+  if (index >= 0) studio.songs[index] = next;
+  if (studio.song === song) studio.song = next;
+  renderLibrary();
+  const file = song.id ? files.get(song.id) : undefined;
+  if (!file) return false;
+  if (next.edits) file.edits = next.edits; else delete file.edits;
+  return saveFile(file);
 }
 
 function filterSongs() {
@@ -118,6 +171,8 @@ function renderLibrary() {
     '<div class="song-row" data-index="' + i + '"><button class="song' + (song === studio.song ? ' active' : '') + '"' +
     (song === studio.song ? ' aria-current="true"' : '') + '><span class="fileicon">♫</span><span>' +
     esc(song.title) + '<small>' + song.tracks.length + ' tracks · ' + formatTime(song.duration) + '</small></span></button>' +
+    '<button class="song-download" type="button" aria-label="Download ' + esc(song.title) + ' as a MIDI file" title="Download .mid">' +
+    '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5v8M4.5 7L8 10.5 11.5 7M3 13.5h10"/></svg></button>' +
     '<button class="song-remove" type="button" aria-label="Remove ' + esc(song.title) + ' from this browser" title="Remove">' +
     '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>').join('');
   filterSongs();
@@ -161,7 +216,7 @@ function clearSelection() {
   $('bars').textContent = 'Bar –';
 }
 
-const songControls = ['play', 'home', 'seek', 'rate', 'tempoBpm', 'loop', 'a', 'b', 'reset', 'all', 'startBar', 'cueHere', 'followScore', 'scrubScore'];
+const songControls = ['play', 'home', 'seek', 'rate', 'tempoBpm', 'loop', 'a', 'b', 'reset', 'all', 'startBar', 'cueHere', 'followScore', 'scrubScore', 'editScore'];
 
 function refreshLibrary() {
   if (!studio.song && studio.songs.length) selectSong(studio.songs[0]);
@@ -274,6 +329,7 @@ export function initLibrary(): void {
     if (!row) return;
     const song = studio.songs[Number(row.dataset.index)];
     if (target.closest('.song-remove')) removeSong(song);
+    else if (target.closest('.song-download')) downloadMidi(song);
     else if (target.closest('.song') && song !== studio.song) whileBusy('Loading ' + song.title + '…', () => selectSong(song));
   });
   const filter = $<HTMLInputElement>('filter');

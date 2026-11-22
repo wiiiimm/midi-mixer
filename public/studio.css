@@ -290,14 +290,14 @@ dialog.floating.front{border-color:#545458;box-shadow:0 18px 56px #000a}
   .view-tools .pager{margin-right:auto}
   .view-tools .label{display:none}
   .view-tools button{min-width:38px;min-height:34px;justify-content:center}
-  #keytoggle,#followScore,#scrubScore{padding-inline:8px}
+  #keytoggle,#followScore,#scrubScore,#editScore{padding-inline:8px}
   .zoom-control{display:none}
 }
 @media(max-width:440px){
   /* Room for the Scrub button on narrow phones. */
   .view-tools{gap:2px}
   .view-tools>*{flex-shrink:0}
-  .view-tools button,#keytoggle,#followScore,#scrubScore{min-width:32px;padding-inline:5px}
+  .view-tools button,#keytoggle,#followScore,#scrubScore,#editScore{min-width:32px;padding-inline:5px}
   .view-tools .pager button{min-width:28px}
   #bars{white-space:nowrap}
   .view-tools .tool-divider{display:none}
@@ -515,7 +515,7 @@ select:disabled{opacity:.45;cursor:default}
 /* Playlist rows: select the song, or remove it from this browser */
 .song-row{position:relative;display:flex;align-items:center;margin:2px 0}
 .song-row[hidden]{display:none}
-.song-row .song{flex:1;min-width:0;margin:0;padding-right:38px}
+.song-row .song{flex:1;min-width:0;margin:0;padding-right:66px}
 nav .song-remove{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px;height:26px;margin:0;padding:0;display:grid;place-items:center;border-radius:50%;background:transparent;color:var(--muted);opacity:0;transition:opacity .15s,background .15s}
 .song-remove svg{width:12px;height:12px;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;fill:none}
 .song-row:hover .song-remove,.song-remove:focus-visible{opacity:1}
@@ -523,6 +523,13 @@ nav .song-remove:hover{background:#ff453a33;color:#ff6961}
 .song-row .song.active~.song-remove{color:#ffffffd9}
 .song-row .song.active~.song-remove:hover{background:#ffffff33;color:#fff}
 @media (hover:none){nav .song-remove{opacity:1}}
+nav .song-download{position:absolute;right:34px;top:50%;transform:translateY(-50%);width:26px;height:26px;margin:0;padding:0;display:grid;place-items:center;border-radius:50%;background:transparent;color:var(--muted);opacity:0;transition:opacity .15s,background .15s}
+.song-download svg{width:13px;height:13px;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;fill:none}
+.song-row:hover .song-download,.song-download:focus-visible{opacity:1}
+nav .song-download:hover{background:#0a84ff33;color:#409cff}
+.song-row .song.active~.song-download{color:#ffffffd9}
+.song-row .song.active~.song-download:hover{background:#ffffff33;color:#fff}
+@media (hover:none){nav .song-download{opacity:1}}
 .restore-samples{background:transparent;border:0;color:var(--accent);font-size:13px;padding:6px 0;text-align:left}
 .restore-samples:hover{text-decoration:underline;filter:none}
 /* Section bar: its own row of chips (from the MIDI markers) that scrolls sideways,
@@ -537,3 +544,85 @@ nav .song-remove:hover{background:#ff453a33;color:#ff6961}
 .section-chip[aria-pressed=true]{background:var(--accent,#0a84ff);color:#fff;border-color:transparent}
 .section-chip[aria-pressed=true]:hover{background:#409cff}
 @media (max-width:860px){.section-bar{padding:5px 0 5px 10px}.section-bar-label{display:none}.section-chip{height:32px;min-width:44px}}
+
+/* Edit mode (see editor.ts): taps add and select notes, and vertical drags move them, so only sideways panning is left to the browser. */
+#editScore { display: inline-flex; align-items: center; gap: 4px; }
+#scorewrap.edit-mode, #scorewrap.edit-mode * { touch-action: pan-x; user-select: none; -webkit-user-select: none; }
+#scorewrap.edit-mode #engravedScore { cursor: default; }
+#scorewrap.edit-mode.edit-input #engravedScore { cursor: crosshair; }
+#scorewrap.edit-mode #engravedScore .note { cursor: ns-resize; }
+#engravedScore .note.edit-selected, #engravedScore .note.edit-selected * { color: #ff9f0a; fill: #ff9f0a; }
+#engravedScore .note.edit-selected .verse, #engravedScore .note.edit-selected .verse * { fill: initial; }
+.edit-bar { flex: none; position: relative; z-index: 6; background: var(--bar); border-bottom: 1px solid var(--line); padding: 6px 12px; }
+.edit-bar[hidden] { display: none; }
+.edit-tools, .edit-group { display: flex; align-items: center; gap: 6px; }
+.edit-tools { flex-wrap: wrap; row-gap: 6px; }
+.edit-tools button, .edit-menu summary { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 30px; white-space: nowrap; }
+.edit-tools #editDown, .edit-tools #editUp { min-width: 34px; font-size: 15px; padding-block: 3px; }
+.edit-tools button:disabled { opacity: .45; }
+.edit-values { display: flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--fill, #2c2c2e); }
+.edit-values button, #editDot { min-width: 32px; padding: 2px 6px; }
+.edit-values button { background: transparent; border-radius: 7px; }
+.edit-values button[aria-checked=true] { background: #0a84ff; color: #fff; }
+.note-glyph { width: 13px; height: 20px; flex: none; overflow: visible; }
+.edit-divider { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
+.edit-foot { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+#scoreViewport { position: relative; }
+.edit-lyric-box { position: absolute; left: 0; top: 0; z-index: 6; transform-origin: 0 0; }
+.edit-lyric-box[hidden] { display: none; }
+.edit-lyric-box input { display: block; box-sizing: content-box; margin: 0; padding: 1px 3px; border: 1px solid #0a84ff; border-radius: 4px; background: #fff; color: #191713; font: 16px/1.2 "Times New Roman", Georgia, "Noto Serif TC", serif; box-shadow: 0 0 0 3px rgba(10, 132, 255, .18); }
+.edit-lyric-box input:focus { outline: none; }
+#scorewrap.edit-mode #engravedScore .verse { cursor: text; }
+.edit-hint { margin: 0; font-size: 12px; color: var(--muted); min-height: 1.3em; min-width: 0; }
+.edit-menu { position: relative; }
+.edit-menu summary { list-style: none; cursor: pointer; border-radius: 8px; background: #2c2c2e; color: #f5f5f7; font-size: 13px; font-weight: 500; padding: 5px 9px; user-select: none; -webkit-user-select: none; }
+.edit-menu summary::-webkit-details-marker { display: none; }
+.edit-menu[open] summary { background: #0a84ff2e; color: #409cff; }
+.edit-menu-items { position: absolute; right: 0; top: calc(100% + 6px); z-index: 40; display: grid; gap: 2px; min-width: 190px; padding: 5px; border-radius: 11px; background: #2c2c2e; border: 1px solid var(--line); box-shadow: 0 10px 30px rgba(0, 0, 0, .45); }
+.edit-menu-items button { justify-content: flex-start; min-height: 36px; padding-inline: 10px; background: transparent; }
+/* The note a tap or click would add, with its ledger lines and pitch name. */
+.edit-ghost { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 29; }
+.edit-ghost[hidden] { display: none; }
+.edit-ghost-head { position: absolute; left: calc(var(--space, 8px) * -.65); top: calc(var(--space, 8px) * -.5); width: calc(var(--space, 8px) * 1.3); height: var(--space, 8px); border-radius: 50%; background: rgba(255, 159, 10, .8); transform: rotate(-20deg); }
+.edit-ghost-ledgers i { position: absolute; left: calc(var(--space, 8px) * -1.15); width: calc(var(--space, 8px) * 2.3); height: 1.5px; margin-top: -.75px; background: rgba(255, 159, 10, .8); }
+.edit-ghost-label { position: absolute; left: calc(var(--space, 8px) * 1.2); top: -9px; padding: 1px 6px; border-radius: 999px; background: #ff9f0a; color: #000; font: 600 11px/16px system-ui, sans-serif; white-space: nowrap; }
+@media(max-width:860px),(max-width:1000px) and (max-height:500px){
+  .edit-bar { padding: 5px 10px; }
+  .edit-tools { gap: 5px; row-gap: 5px; }
+  .edit-group { width: 100%; gap: 4px; }
+  .edit-group > button, .edit-group > .edit-menu, .edit-values button { flex: 1; min-width: 0; padding-inline: 2px; }
+  .edit-values { flex: 5; }
+  .edit-tools button, .edit-menu summary { min-height: 38px; }
+  .edit-menu summary { width: 100%; padding-inline: 2px; font-size: 17px; }
+  .edit-tools .tool-icon { width: 20px; height: 20px; }
+  .edit-tools #editUndo, .edit-tools #editRedo, .edit-tools #editDown, .edit-tools #editUp { font-size: 18px; }
+  .note-glyph { width: 15px; height: 23px; }
+  .edit-divider { display: none; }
+  .edit-tools .label { display: none; }
+  .edit-menu-items button { min-height: 44px; font-size: 15px; }
+  .edit-foot { gap: 8px; margin-top: 5px; }
+  .edit-hint { font-size: 11px; }
+}
+/* Room for the Edit button on the narrowest phones: the bar number is also in the BAR : BEAT readout above. */
+@media(max-width:374px){ #bars{display:none} .view-tools button,#keytoggle,#followScore,#scrubScore,#editScore{min-width:30px;padding-inline:4px} .view-tools{gap:1px} }
+#engravedScore .note.edit-target, #engravedScore .note.edit-target * { color: #30d158; fill: #30d158; }
+/* While a note is dragged up or down: it turns orange, a guide marks its new line or space, and its new pitch shows above the finger. */
+#engravedScore .note.edit-dragging, #engravedScore .note.edit-dragging * { color: #ff9f0a; fill: #ff9f0a; }
+#engravedScore .note.edit-dragging .verse, #engravedScore .note.edit-dragging .verse * { fill: initial; }
+.edit-drag { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 31; }
+.edit-drag[hidden] { display: none; }
+.edit-drag-line { position: absolute; left: -36px; width: 72px; top: -1px; height: 2px; border-radius: 1px; background: rgba(255, 159, 10, .75); }
+.edit-drag-label { position: absolute; left: 0; bottom: 44px; transform: translateX(-50%); padding: 3px 9px; border-radius: 999px; background: #ff9f0a; color: #000; font: 600 15px/1.2 system-ui, sans-serif; white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, .3); }
+/* Touch: a floating staff above the finger shows the dragged note's new line or space (see showLoupe). */
+.edit-loupe { display: none; position: absolute; width: 132px; padding: 4px 0 6px; border-radius: 14px; background: #fff; border: 2px solid #ff9f0a; box-shadow: 0 8px 24px rgba(0, 0, 0, .45); text-align: center; }
+.edit-drag-touch .edit-loupe { display: block; }
+.edit-drag-touch .edit-drag-label { display: none; }
+.edit-loupe svg { display: block; width: 132px; height: 104px; }
+.edit-loupe path { stroke: #232323; stroke-width: 1.2; fill: none; }
+.edit-loupe .was { fill: none; stroke: #9a9a9a; stroke-width: 1.5; }
+.edit-loupe .now { fill: #ff9f0a; }
+.edit-loupe-name { display: block; color: #111; font: 700 20px/1.1 system-ui, sans-serif; }
+.edit-curve { position: fixed; inset: 0; pointer-events: none; z-index: 30; }
+.edit-curve svg { width: 100%; height: 100%; overflow: visible; }
+.edit-curve[hidden] { display: none; }
+.edit-curve path { fill: none; stroke: #ff9f0a; stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 5 4; }
