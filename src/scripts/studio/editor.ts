@@ -316,11 +316,21 @@ function previewDrag(steps: number) {
   if (!song || !hit || !gesture) return;
   for (const element of chainElements(hit)) {
     const scale = element.getScreenCTM()?.d || 1;
+    element.classList.add('edit-dragging');
     if (steps) element.setAttribute('transform', 'translate(0 ' + (-steps * gesture.spacing / 2 / scale) + ')');
     else element.removeAttribute('transform');
   }
   const pitch = stepPitch(hit.note.p, steps, song.keyAt(hit.note.q).sf);
-  $('editHint').textContent = pitchNameWithOctave(pitch, song.keyAt(hit.note.q).sf) + (steps ? ' (let go to move the note here)' : '');
+  const name = pitchNameWithOctave(pitch, song.keyAt(hit.note.q).sf);
+  $('editHint').textContent = name + (steps ? ' (let go to move the note here)' : '');
+  // The finger covers the note, so mark its new line or space beside it and show the pitch above.
+  const head = scoreNoteElements(hit.note)[0]?.querySelector('.notehead')?.getBoundingClientRect();
+  const marker = $('editDrag');
+  if (head) {
+    marker.hidden = false;
+    marker.style.transform = 'translate(' + (head.left + head.width / 2) + 'px, ' + (head.top + head.height / 2) + 'px)';
+    marker.querySelector('.edit-drag-label')!.textContent = name;
+  }
   if (steps !== gesture.steps) void previewNote(hit.track, pitch, .35);
   gesture.steps = steps;
 }
@@ -349,8 +359,12 @@ function previewCurve(clientX: number, clientY: number) {
 
 function cancelGesture() {
   if (gesture?.hit) {
-    for (const element of chainElements(gesture.hit)) element.removeAttribute('transform');
+    for (const element of chainElements(gesture.hit)) {
+      element.removeAttribute('transform');
+      element.classList.remove('edit-dragging');
+    }
   }
+  $('editDrag').hidden = true;
   for (const element of document.querySelectorAll('#engravedScore .edit-target')) element.classList.remove('edit-target');
   $('editCurve').hidden = true;
   gesture = undefined;

@@ -575,6 +575,13 @@ nav .song-download:hover{background:#0a84ff33;color:#409cff}
 /* Room for the Edit button on the narrowest phones: the bar number is also in the BAR : BEAT readout above. */
 @media(max-width:374px){ #bars{display:none} .view-tools button,#keytoggle,#followScore,#scrubScore,#editScore{min-width:30px;padding-inline:4px} .view-tools{gap:1px} }
 #engravedScore .note.edit-target, #engravedScore .note.edit-target * { color: #30d158; fill: #30d158; }
+/* While a note is dragged up or down: it turns orange, a guide marks its new line or space, and its new pitch shows above the finger. */
+#engravedScore .note.edit-dragging, #engravedScore .note.edit-dragging * { color: #ff9f0a; fill: #ff9f0a; }
+#engravedScore .note.edit-dragging .verse, #engravedScore .note.edit-dragging .verse * { fill: initial; }
+.edit-drag { position: fixed; left: 0; top: 0; pointer-events: none; z-index: 31; }
+.edit-drag[hidden] { display: none; }
+.edit-drag-line { position: absolute; left: -36px; width: 72px; top: -1px; height: 2px; border-radius: 1px; background: rgba(255, 159, 10, .75); }
+.edit-drag-label { position: absolute; left: 0; bottom: 44px; transform: translateX(-50%); padding: 3px 9px; border-radius: 999px; background: #ff9f0a; color: #000; font: 600 15px/1.2 system-ui, sans-serif; white-space: nowrap; box-shadow: 0 2px 8px rgba(0, 0, 0, .3); }
 .edit-curve { position: fixed; inset: 0; pointer-events: none; z-index: 30; }
 .edit-curve svg { width: 100%; height: 100%; overflow: visible; }
 .edit-curve[hidden] { display: none; }
