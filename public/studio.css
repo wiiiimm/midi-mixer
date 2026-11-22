@@ -566,7 +566,12 @@ nav .song-download:hover{background:#0a84ff33;color:#409cff}
 .edit-values button[aria-checked=true] { background: #0a84ff; color: #fff; }
 .note-glyph { width: 13px; height: 20px; flex: none; overflow: visible; }
 .edit-divider { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
-.edit-hint { margin: 5px 0 0; font-size: 12px; color: var(--muted); min-height: 1.3em; }
+.edit-foot { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
+.edit-lyric { display: flex; align-items: center; gap: 6px; flex: none; font-size: 12px; color: var(--muted); }
+.edit-lyric input { width: 150px; padding: 4px 8px; border: 1px solid transparent; border-radius: 8px; background: var(--fill); color: #f5f5f7; font-size: 13px; }
+.edit-lyric input:focus { outline: none; border-color: #0a84ff; }
+.edit-lyric input:disabled { opacity: .45; }
+.edit-hint { margin: 0; font-size: 12px; color: var(--muted); min-height: 1.3em; min-width: 0; }
 .edit-menu { position: relative; }
 .edit-menu summary { list-style: none; cursor: pointer; border-radius: 8px; background: #2c2c2e; color: #f5f5f7; font-size: 13px; font-weight: 500; padding: 5px 9px; user-select: none; -webkit-user-select: none; }
 .edit-menu summary::-webkit-details-marker { display: none; }
@@ -593,7 +598,10 @@ nav .song-download:hover{background:#0a84ff33;color:#409cff}
   .edit-divider { display: none; }
   .edit-tools .label { display: none; }
   .edit-menu-items button { min-height: 44px; font-size: 15px; }
-  .edit-hint { font-size: 11px; margin-top: 3px; }
+  .edit-foot { gap: 8px; margin-top: 5px; }
+  .edit-lyric { font-size: 0; gap: 0; }
+  .edit-lyric input { width: 116px; min-height: 34px; font-size: 16px; }
+  .edit-hint { font-size: 11px; }
 }
 /* Room for the Edit button on the narrowest phones: the bar number is also in the BAR : BEAT readout above. */
 @media(max-width:374px){ #bars{display:none} .view-tools button,#keytoggle,#followScore,#scrubScore,#editScore{min-width:30px;padding-inline:4px} .view-tools{gap:1px} }

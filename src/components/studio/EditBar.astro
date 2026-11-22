@@ -49,7 +49,10 @@ const values = [
         </details>
       </div>
     </div>
-    <p id="editHint" class="edit-hint" aria-live="polite"></p>
+    <div class="edit-foot">
+      <label class="edit-lyric">Lyric <input id="editLyric" type="text" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="next" placeholder="Lyric" title="The lyric under the selected note (Enter on a note to edit it). Enter or Space moves on to the next note; clear the text to remove the lyric." aria-label="Lyric of the selected note" disabled></label>
+      <p id="editHint" class="edit-hint" aria-live="polite"></p>
+    </div>
   </div>
   <div id="editCurve" class="edit-curve" aria-hidden="true" hidden><svg><path /></svg></div>
   <div id="editDrag" class="edit-drag" aria-hidden="true" hidden><span class="edit-drag-line"></span><span class="edit-drag-label"></span><span class="edit-loupe"><svg viewBox="0 0 132 104"></svg><span class="edit-loupe-name"></span></span></div>

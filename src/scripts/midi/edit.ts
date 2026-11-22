@@ -178,6 +178,14 @@ export function setPitch(edits: SongEdits, ids: readonly number[], pitch: number
   }
 }
 
+/** Sets the lyric sung on a note, or removes it for an empty text. Returns whether anything changed. */
+export function setLyric(edits: SongEdits, id: number, text: string): boolean {
+  const note = findNote(edits, id)?.note, lyric = text.trim();
+  if (!note || (note.lyric ?? '') === lyric) return false;
+  if (lyric) note.lyric = lyric; else delete note.lyric;
+  return true;
+}
+
 /** Whether giving these notes this pitch would put two notes of the same pitch at the same time in a part. */
 export function pitchClashes(edits: SongEdits, ids: readonly number[], pitch: number): boolean {
   const moved = new Set(ids);

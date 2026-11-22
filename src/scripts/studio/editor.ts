@@ -4,7 +4,7 @@ import { shortcutsBlocked } from '../lib/shortcuts';
 import type { Song, SongEdits } from '../lib/types';
 import {
   addNote, applyEdits, cloneEdits, editsFor, findNote, hasLinks, linkNotes, noteCount, pitchAtStep, pitchClashes, removeNotes,
-  setPitch, staffStep, stepPitch, tieChain, unlinkNotes, writtenTracks,
+  setLyric, setPitch, staffStep, stepPitch, tieChain, unlinkNotes, writtenTracks,
 } from '../midi/edit';
 import { DRUM_KIT, usesBassClef } from '../midi/parse';
 import { PIANO_NOTE } from '../tools/piano';
@@ -225,8 +225,45 @@ function refreshControls() {
     element.tabIndex = checked || (!shown && element.dataset.beats === '1') ? 0 : -1;
   }
   button('editDot').setAttribute('aria-pressed', String(shown && dotted));
+  showLyric(hit);
   if (!on || !song) return;
   $('editHint').textContent = hintText(song, hit);
+}
+
+// ── Lyrics ──
+
+const lyricInput = () => $<HTMLInputElement>('editLyric');
+/** The edit note whose lyric the field holds: the first note of the selection. */
+let lyricNote: number | undefined;
+
+/** Puts the selected note's lyric in the Lyric field, unless it is being typed in for that same note. */
+function showLyric(hit: ScoreNoteHit | undefined) {
+  const input = lyricInput(), id = hit ? selected[0] : undefined;
+  const lyric = id === undefined ? '' : studio.song?.edits ? findNote(studio.song.edits, id)?.note.lyric ?? '' : hit!.note.lyric ?? '';
+  input.disabled = id === undefined;
+  if (id === lyricNote && document.activeElement === input) return;
+  lyricNote = id;
+  input.value = lyric;
+  input.dataset.saved = lyric;
+}
+
+/** Saves what was typed in the Lyric field to its note; an empty text removes the lyric. */
+function commitLyric() {
+  const input = lyricInput(), id = lyricNote;
+  if (id === undefined || input.value.trim() === (input.dataset.saved ?? '')) return;
+  const text = input.value;
+  input.dataset.saved = text.trim();
+  commit(edits => setLyric(edits, id, text));
+}
+
+/** Saves the lyric and moves on to the next note of the part, staying in the field, for typing a line in. */
+function nextLyric(step: number) {
+  commitLyric();
+  const next = neighbour(step);
+  if (!next) return;
+  lyricNote = undefined;
+  selectHit(next, false);
+  lyricInput().select();
 }
 
 function hintText(song: Song, hit: ScoreNoteHit | undefined): string {
@@ -676,6 +713,21 @@ export function initEditor(): void {
   document.addEventListener('pointerdown', event => {
     if (menu.open && !menu.contains(event.target as Node)) menu.open = false;
   });
+  const lyric = lyricInput();
+  lyric.addEventListener('change', commitLyric);
+  // Typing replaces the lyric that is there, as tapping into the field on a phone would otherwise add to it.
+  lyric.addEventListener('focus', () => setTimeout(() => lyric.select()));
+  lyric.addEventListener('keydown', event => {
+    // Keys that are choosing characters in an input method (Chinese, Japanese…) are not ours.
+    if (event.isComposing) return;
+    if (event.key === 'Enter' || event.key === ' ') nextLyric(event.shiftKey ? -1 : 1);
+    else if (event.key === 'Escape') {
+      lyric.value = lyric.dataset.saved ?? '';
+      lyric.blur();
+    } else return;
+    event.preventDefault();
+    event.stopPropagation();
+  });
   document.addEventListener(PIANO_NOTE, event => {
     if (editEnabled() && noteInput) addAfterSelected((event as CustomEvent<number>).detail);
   });
@@ -721,6 +773,7 @@ export function initEditor(): void {
     if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
     if (!(event.target as Element).closest('#engravedScore')) return;
     hideGhost();
+    commitLyric();
     const staff = scoreStaffAt(event.clientX, event.clientY);
     const radius = Math.max(event.pointerType === 'touch' ? 22 : 12, (staff?.spacing ?? 8) * 1.2);
     let hit = scoreNoteNear(event.clientX, event.clientY, radius);
@@ -778,6 +831,7 @@ export function initEditor(): void {
     else if (event.key === 'Escape' && (selected.length || linking)) select([]);
     else if (event.key === 'Escape' && noteInput) setNoteInput(false);
     else if ((event.key === 'Delete' || event.key === 'Backspace') && selected.length) deleteSelected(true);
+    else if (event.key === 'Enter' && selected.length) { lyricInput().focus(); lyricInput().select(); }
     else if (event.code === 'KeyN' && !event.shiftKey) { if (!event.repeat) setNoteInput(!noteInput); }
     else if (event.code in VALUE_KEYS && !event.shiftKey) setValue(VALUE_KEYS[event.code]);
     else if (event.key === '.') toggleDot();
