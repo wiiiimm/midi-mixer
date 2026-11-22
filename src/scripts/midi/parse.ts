@@ -5,6 +5,12 @@ import type { Bar, KeySignature, Marker, Meter, Note, Song, Tempo, Track } from 
 export const instruments: readonly string[] = [...gmNames, 'Drum kit'];
 export const DRUM_KIT = 128;
 
+/** Whether a track is engraved on a bass clef (its median pitch is below B♭3). */
+export function usesBassClef(track: Track): boolean {
+  const pitches = track.notes.map(note => note.p).sort((a, b) => a - b);
+  return pitches[Math.floor(pitches.length / 2)] < 58;
+}
+
 const instrumentFor = (program: number, channel: number): number => channel === 9 ? DRUM_KIT : program & 127;
 
 type RawNote = Omit<Note, 's' | 'e'> & Partial<Pick<Note, 's' | 'e'>>;
@@ -54,9 +60,21 @@ function prepare(title: string, rawTracks: RawTrack[], rawTempos: RawTempo[] = [
   }
   bars.push({q: end, n: 0, d: 0}); // end marker
   return {
-    title, tracks: rawTracks as Track[], tempos, bars, markers, ppq, end,
+    title, tracks: rawTracks as Track[], tempos, bars, markers, ppq, end, meters, keys,
     duration: seconds(end), seconds, beat, keyAt: q => lastAtOrBefore(keys, q, 'q'),
   };
+}
+
+/**
+ * Builds a new song from an existing one with different notes (after an edit). Tempo,
+ * time and key signatures and markers are kept; timings, bars and the length are recomputed.
+ */
+export function rebuildSong(song: Song, tracks: Track[]): Song {
+  const tempos = song.tempos.map(({q, us}) => ({q, us}));
+  const rebuilt = prepare(song.title, tracks, tempos, song.meters.map(m => ({...m})),
+    song.keys.map(k => ({...k})), song.markers, song.ppq);
+  rebuilt.id = song.id;
+  return rebuilt;
 }
 
 /** Parses a type 0/1 Standard MIDI File with beat-based timing. */
@@ -165,5 +183,9 @@ export function parseMidi(bytes: ArrayBuffer, title: string): Song {
       tracks.push(track);
     }
   }
-  return prepare(title, tracks, tempos, meters, keys, markers, ppq);
+  const song = prepare(title, tracks, tempos, meters, keys, markers, ppq);
+  // Number the notes so the editor can refer to them (see midi/edit.ts).
+  let id = 1;
+  for (const track of song.tracks) for (const note of track.notes) note.src = [id++];
+  return song;
 }

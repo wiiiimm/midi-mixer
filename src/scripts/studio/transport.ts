@@ -114,18 +114,22 @@ function loopChanged() {
 
 /** Resets the transport controls for a newly selected song. */
 export function resetTransport(song: Song): void {
-  const lastBar = String(song.bars.length - 1);
-  input('startBar').max = lastBar;
   input('startBar').value = '1';
   studio.looping = false;
   $('loop').setAttribute('aria-pressed', 'false');
   $('play').textContent = PLAY;
-  input('a').max = input('b').max = lastBar;
   input('a').value = '1';
   input('b').value = String(Math.min(4, song.bars.length - 1));
+  updateSongInfo(song);
+}
+
+/** Updates the title, length and bar limits, for a new song or after an edit. */
+export function updateSongInfo(song: Song): void {
+  const lastBar = String(song.bars.length - 1);
+  input('startBar').max = input('a').max = input('b').max = lastBar;
   input('seek').max = String(song.duration);
   $('title').textContent = song.title;
-  $('meta').textContent = song.tracks.length + ' tracks　·　' + (song.bars.length - 1) + ' bars';
+  $('meta').textContent = song.tracks.length + ' tracks　·　' + (song.bars.length - 1) + ' bars' + (song.edits ? '　·　Edited' : '');
 }
 
 export function initTransport(): void {

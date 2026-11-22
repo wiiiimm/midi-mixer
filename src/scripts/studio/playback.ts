@@ -228,6 +228,15 @@ export function endScrub(): void {
   scrubbed.clear();
 }
 
+/** Sounds one note in a track's instrument, as feedback while editing (not while playing). */
+export async function previewNote(track: number, pitch: number, seconds = .6): Promise<void> {
+  createBuses(await enableAudio());
+  const audio = currentAudio();
+  if (!audio || studio.playing || !studio.mix[track]) return;
+  const voice = sound(track, {q: 0, len: 0, p: pitch, v: .8, s: 0, e: 0}, audio.ctx.currentTime, seconds);
+  if (voice) setTimeout(() => forget(voice), seconds * 1000 + 50);
+}
+
 /** Waits (with the busy overlay) for this song's instrument samples, if any are missing. */
 async function ensureSounds() {
   const programs = studio.mix.map(m => m.inst).filter(p => p < 128 && !isInstrumentReady(p));

@@ -49,6 +49,19 @@ Pinch the score to zoom in or out, between 40% and 300%. On a computer, pinch on
 
 Turn on **Scrub** to scrub through the song as you would in an audio or video editor: press anywhere on the score to move the playhead there and hear the notes under it, then drag sideways to keep scrubbing. Notes keep sounding while the playhead rests on them. Drag to either edge to scroll the score along. If the song was playing, it pauses while you scrub and carries on from where you let go. Shift-drag also moves the cue to where you let go. On a touch screen, sideways drags scrub, swiping up or down still scrolls, and pinching still zooms.
 
+## Edit the notes
+
+Turn on **Edit** (the pencil beside Scrub) to change the notes of the loaded song on the score. The original MIDI file is always kept as it was, so you can go back to it at any time.
+
+- **Add a note:** tap or click an empty spot on a staff. The note goes into that part, at the line or space you tapped, using the key signature’s sharps or flats. Choose its length from **Length** first; it snaps to that length within the bar.
+- **Select a note:** tap or click it. It turns orange and you hear it. Changing **Length** then changes the selected note too.
+- **Change its pitch:** drag the note up or down. It moves along the scale of the key, and you hear each step. **♭** and **♯** move it by a semitone instead. On a computer, the arrow keys move it by a step, or a semitone with Shift.
+- **Tie or slur:** select a note, tap **Link**, then tap another note in the same part. Two notes of the same pitch are tied and play as one sustained note; notes of different pitches are slurred. **Unlink** removes the selected note’s ties and slurs. Dragging a tied note moves the whole tie with it.
+- **Delete:** tap **✕ Delete** or press Delete or Backspace.
+- **Undo, redo and reset:** **↶** and **↷** step back and forward through your edits (Ctrl/⌘ Z and Shift Ctrl/⌘ Z on a computer). **Reset to original** goes back to the song’s original MIDI; Undo brings your edits back.
+
+Edits are saved with the song in this browser, and the song shows **Edited** beside its bar count. Playback, the practice piano highlights and the staff labels all follow the edited notes. On a touch screen in Edit mode, sideways swipes still scroll the score, up and down drags move notes (or scroll the staves when you start on an empty spot), and pinching still zooms. Editing needs the engraved score, and drum parts can’t be edited.
+
 MIDI files are engraved in the browser as grouped staves with connected barlines, beams, rests and ties. The display uses part names, key signatures, lyrics and rehearsal markers when the MIDI provides them. MIDI playback uses the original timing.
 
 The PDFs in `reference/scores/` are kept outside the app’s public assets. The bundled **這裡** uses `here-from-score.mid`, which combines the original MIDI performance with verified part names, lyrics and rehearsal marks recovered from its PDF. The bundled **載我走** and **心的小島** also use MIDI files with lyrics and section marks recovered from their PDFs. **載我走** uses the printed opening tempo, and its scanned backing lyrics are partial. **心的小島** includes the four sung parts. The original exports are saved as `here.mid`, `carry-me.mid` and `heart-island.mid`. For a closer match, export MIDI with named tracks, key signatures and lyric events enabled. Exact editorial details such as dynamics, written repeats and enharmonic spelling are best preserved in MusicXML.
@@ -76,7 +89,7 @@ Astro writes the static site to `dist/`.
 | `src/scripts/main.ts` | Studio entry point: calls each module’s `init` function in order. |
 | `src/scripts/studio/` | Shared state, playback scheduling, transport, mixer, playlist and score view. |
 | `src/scripts/audio/` | Audio context and built-in synth, General MIDI samples and the metronome click. |
-| `src/scripts/midi/` | MIDI file parsing and the bundled song list. |
+| `src/scripts/midi/` | MIDI file parsing, the editing model (`edit.ts`) and the bundled song list. |
 | `src/scripts/score/` | Verovio engraving (loaded on demand as its own chunk) and fallback clef shapes. |
 | `src/scripts/tools/` | Practice piano, tuning fork, pitch detector and metronome. |
 | `src/scripts/ui/` | Loading screen, responsive drawer, floating windows, instrument picker and offline support. |

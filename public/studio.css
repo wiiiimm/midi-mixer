@@ -290,14 +290,14 @@ dialog.floating.front{border-color:#545458;box-shadow:0 18px 56px #000a}
   .view-tools .pager{margin-right:auto}
   .view-tools .label{display:none}
   .view-tools button{min-width:38px;min-height:34px;justify-content:center}
-  #keytoggle,#followScore,#scrubScore{padding-inline:8px}
+  #keytoggle,#followScore,#scrubScore,#editScore{padding-inline:8px}
   .zoom-control{display:none}
 }
 @media(max-width:440px){
   /* Room for the Scrub button on narrow phones. */
   .view-tools{gap:2px}
   .view-tools>*{flex-shrink:0}
-  .view-tools button,#keytoggle,#followScore,#scrubScore{min-width:32px;padding-inline:5px}
+  .view-tools button,#keytoggle,#followScore,#scrubScore,#editScore{min-width:32px;padding-inline:5px}
   .view-tools .pager button{min-width:28px}
   #bars{white-space:nowrap}
   .view-tools .tool-divider{display:none}
@@ -537,3 +537,33 @@ nav .song-remove:hover{background:#ff453a33;color:#ff6961}
 .section-chip[aria-pressed=true]{background:var(--accent,#0a84ff);color:#fff;border-color:transparent}
 .section-chip[aria-pressed=true]:hover{background:#409cff}
 @media (max-width:860px){.section-bar{padding:5px 0 5px 10px}.section-bar-label{display:none}.section-chip{height:32px;min-width:44px}}
+
+/* Edit mode (see editor.ts): taps add and select notes, and vertical drags move them, so only sideways panning is left to the browser. */
+#editScore { display: inline-flex; align-items: center; gap: 4px; }
+#scorewrap.edit-mode, #scorewrap.edit-mode * { touch-action: pan-x; user-select: none; -webkit-user-select: none; }
+#scorewrap.edit-mode #engravedScore { cursor: crosshair; }
+#scorewrap.edit-mode #engravedScore .note { cursor: ns-resize; }
+#engravedScore .note.edit-selected, #engravedScore .note.edit-selected * { color: #ff9f0a; fill: #ff9f0a; }
+#engravedScore .note.edit-selected .verse, #engravedScore .note.edit-selected .verse * { fill: initial; }
+.edit-bar { flex: none; background: var(--bar); border-bottom: 1px solid var(--line); padding: 6px 12px; }
+.edit-bar[hidden] { display: none; }
+.edit-tools { display: flex; align-items: center; gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.edit-tools::-webkit-scrollbar { display: none; }
+.edit-tools > * { flex: none; }
+.edit-tools label { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+.edit-tools #editDown, .edit-tools #editUp { min-width: 34px; font-size: 15px; padding-block: 3px; }
+.edit-tools button:disabled { opacity: .45; }
+.edit-divider { width: 1px; align-self: stretch; background: var(--line); margin: 0 4px; }
+.edit-hint { margin: 5px 0 0; font-size: 12px; color: var(--muted); min-height: 1.3em; }
+@media(max-width:860px),(max-width:1000px) and (max-height:500px){
+  .edit-bar { padding: 5px 10px; }
+  .edit-tools { flex-wrap: wrap; overflow: visible; row-gap: 5px; gap: 5px; }
+  .edit-tools button, .edit-tools select { min-height: 34px; }
+  .edit-tools select { width: auto; }
+  .edit-tools label { gap: 0; font-size: 0; }
+  .edit-divider { display: none; }
+  .edit-tools .label { display: none; }
+  .edit-hint { font-size: 11px; margin-top: 3px; }
+}
+/* Room for the Edit button on the narrowest phones: the bar number is also in the BAR : BEAT readout above. */
+@media(max-width:374px){ #bars{display:none} .view-tools button,#keytoggle,#followScore,#scrubScore,#editScore{min-width:30px;padding-inline:4px} .view-tools{gap:1px} }

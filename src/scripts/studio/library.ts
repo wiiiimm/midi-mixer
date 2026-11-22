@@ -1,6 +1,7 @@
 import { loadInstrument } from '../audio/sampler';
 import { $, esc, formatTime } from '../lib/dom';
-import type { Song } from '../lib/types';
+import type { Song, SongEdits } from '../lib/types';
+import { applyEdits, editsFit } from '../midi/edit';
 import { parseMidi } from '../midi/parse';
 import { bundledSongs } from '../midi/repertoire';
 import { syncMetronome } from '../tools/metronome-window';
@@ -25,6 +26,8 @@ interface StoredFile {
   data: ArrayBuffer;
   /** When it joined the playlist; sets the playlist order. */
   added?: number;
+  /** The user's edits. `data` always keeps the original MIDI file to reset to. */
+  edits?: SongEdits;
 }
 
 const DB_NAME = 'partbook-midi', SCORES = 'scores', PREFS = 'prefs';
@@ -99,10 +102,38 @@ function noteSessionOnly(pending: readonly StoredFile[]): void {
 const files = new Map<string, StoredFile>();
 
 function songFrom(file: StoredFile): Song {
-  const song = parseMidi(file.data, file.name);
+  let song = parseMidi(file.data, file.name);
   song.id = file.id;
+  if (editsFit(file.edits, song.tracks.length)) {
+    try { song = applyEdits(song, file.edits); } catch { /* edits that no longer apply are ignored */ }
+  }
   files.set(file.id, file);
   return song;
+}
+
+/** The song as its original MIDI file, without edits. */
+export function originalSong(song: Song): Song | undefined {
+  const file = song.id ? files.get(song.id) : undefined;
+  if (!file) return;
+  const original = parseMidi(file.data, file.name);
+  original.id = file.id;
+  return original;
+}
+
+/**
+ * Puts an edited (or reset) version of a song in its place in the playlist and saves
+ * its edits, keeping the mixer settings. Returns whether the edits were saved.
+ */
+export async function replaceSong(song: Song, next: Song): Promise<boolean> {
+  next.mix = song.mix;
+  const index = studio.songs.indexOf(song);
+  if (index >= 0) studio.songs[index] = next;
+  if (studio.song === song) studio.song = next;
+  renderLibrary();
+  const file = song.id ? files.get(song.id) : undefined;
+  if (!file) return false;
+  if (next.edits) file.edits = next.edits; else delete file.edits;
+  return saveFile(file);
 }
 
 function filterSongs() {
@@ -161,7 +192,7 @@ function clearSelection() {
   $('bars').textContent = 'Bar –';
 }
 
-const songControls = ['play', 'home', 'seek', 'rate', 'tempoBpm', 'loop', 'a', 'b', 'reset', 'all', 'startBar', 'cueHere', 'followScore', 'scrubScore'];
+const songControls = ['play', 'home', 'seek', 'rate', 'tempoBpm', 'loop', 'a', 'b', 'reset', 'all', 'startBar', 'cueHere', 'followScore', 'scrubScore', 'editScore'];
 
 function refreshLibrary() {
   if (!studio.song && studio.songs.length) selectSong(studio.songs[0]);

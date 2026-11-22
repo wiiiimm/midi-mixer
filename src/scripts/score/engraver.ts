@@ -2,7 +2,8 @@ import createVerovio from 'verovio/wasm';
 import { VerovioToolkit } from 'verovio/esm';
 import type { Bar, KeySignature, Note, Song, StaffLabelMode, Track } from '../lib/types';
 import { spellPitch } from '../lib/notes';
-import { DRUM_KIT } from '../midi/parse';
+import { DRUM_KIT, usesBassClef } from '../midi/parse';
+import { writtenTracks } from '../midi/edit';
 
 // Turns a parsed MIDI song into MEI and engraves it with Verovio. This module (and
 // the ~8 MB Verovio build) is loaded on demand, so the rest of the app starts first.
@@ -19,6 +20,10 @@ interface LayerContext {
 
 export interface EngravedScore {
   svg: string;
+  /** Note element id → the song note it draws (one id per notehead fragment) and its track. */
+  owners: Map<string, {note: Note; track: number}>;
+  /** Song note → the ids of the noteheads that draw it, in order. */
+  heads: Map<Note, string[]>;
   /** Measure element id → bar index. */
   measures: Map<string, number>;
   /** Note/chord element id → onset and release, in beats. */
@@ -112,7 +117,7 @@ function firstEndingAfter(voice: NoteEvent[], position: number): number {
 }
 
 function writeLayer(events: NoteEvent[], first: number, context: LayerContext, staff: number, layer: number,
-  labels: string[], timing: Map<string, NoteTiming>): string {
+  labels: string[], timing: Map<string, NoteTiming>, record: (note: Note, id: string) => void): string {
   const { start, end, beatLength, key, mode, pageStart, pageEnd, accidentalState } = context;
   const content: Token[] = [];
   let position = start;
@@ -146,6 +151,7 @@ function writeLayer(events: NoteEvent[], first: number, context: LayerContext, s
       const pitches = [...event.notes.keys()].sort((a,b) => b-a);
       const chord = pitches.length > 1;
       const notes = pitches.map((pitch, index) => {
+        record(event.notes.get(pitch)!, chord ? id + '-' + index : id);
         const spelling = spell(pitch,key.sf);
         const { letter, accidental, octave } = spelling;
         const pitchKey = letter + octave;
@@ -200,11 +206,9 @@ const signature = (bar: Bar, key: KeySignature): string => '<scoreDef meter.coun
   '" key.sig="' + (key.sf ? Math.abs(key.sf) + (key.sf > 0 ? 's' : 'f') : '0') + '"';
 
 function staffDefinition(track: Track, index: number): string {
-  const pitches = track.notes.map(note => note.p).sort((a,b) => a-b);
-  const median = pitches[Math.floor(pitches.length/2)];
   const percussion = track.inst === DRUM_KIT;
   const clef = percussion ? 'clef.shape="perc" clef.line="3"' :
-    median < 58 ? 'clef.shape="F" clef.line="4"' : 'clef.shape="G" clef.line="2"';
+    usesBassClef(track) ? 'clef.shape="F" clef.line="4"' : 'clef.shape="G" clef.line="2"';
   return '<staffDef n="' + (index+1) + '" lines="5" ' + clef + '><label>' + escape(track.name) +
     '</label><labelAbbr>' + escape(track.name) + '</labelAbbr></staffDef>';
 }
@@ -212,15 +216,18 @@ function staffDefinition(track: Track, index: number): string {
 const scores = new WeakMap<Song, NoteEvent[][][]>();
 function encodeScore(song: Song, mode: StaffLabelMode) {
   if (!scores.has(song)) {
-    const shortenedPpq = usesShortenedDurations(song.tracks,song.ppq) ? song.ppq : 0;
-    scores.set(song,song.tracks.map(track=>makeVoices(track,shortenedPpq)));
+    const tracks = writtenTracks(song);
+    const shortenedPpq = usesShortenedDurations(tracks,song.ppq) ? song.ppq : 0;
+    scores.set(song,tracks.map(track=>makeVoices(track,shortenedPpq)));
   }
   const voiceTracks = scores.get(song)!;
   const measures = new Map<string, number>(), timing = new Map<string, NoteTiming>();
+  const owners = new Map<string, {note: Note; track: number}>(), heads = new Map<Note, string[]>();
+  const headBar = new Map<string, number>();
   const last = song.bars.length-1;
   const pageStart = 0, pageEnd = tick(song.bars[last].q);
   const initial = signature(song.bars[0],song.keyAt(0)) +
-    '><staffGrp symbol="bracket" bar.thru="true">' + song.tracks.map(staffDefinition).join('') +
+    '><staffGrp symbol="bracket" bar.thru="true">' + writtenTracks(song).map(staffDefinition).join('') +
     '</staffGrp></scoreDef>';
   let section = '';
   for (let barIndex=0; barIndex<last; barIndex++) {
@@ -256,22 +263,38 @@ function encodeScore(song: Song, mode: StaffLabelMode) {
     }
     const staves = voiceTracks.map((voices,i) => {
       const staff = i+1;
+      const record = (note: Note, id: string) => {
+        owners.set(id, {note, track: i});
+        headBar.set(id, barIndex);
+        const list = heads.get(note);
+        if (list) list.push(id); else heads.set(note, [id]);
+      };
       const context = {start,end,beatLength,key,mode,pageStart,pageEnd,accidentalState:new Map()};
       const layers = voices.flatMap((voice,j) => {
         const first = firstEndingAfter(voice,start);
         if (first === voice.length || voice[first].start >= end) return [];
-        return [writeLayer(voice,first,context,staff,j+1,controls,timing)];
+        return [writeLayer(voice,first,context,staff,j+1,controls,timing,record)];
       });
-      if (!layers.length) layers.push(writeLayer([],0,context,staff,1,controls,timing));
+      if (!layers.length) layers.push(writeLayer([],0,context,staff,1,controls,timing,record));
       return '<staff n="' + staff + '">' + layers.join('') + '</staff>';
     }).join('');
     section += '<measure xml:id="' + id + '" n="' + (barIndex+1) + '">' +
-      staves + controls.join('') + '</measure>';
+      staves + controls.join('') + '<!--links-' + barIndex + '-->' + '</measure>';
   }
+  // Ties and slurs, written into the bar where they start, from the last notehead of one note to the first of the other.
+  const links = new Map<number, string>();
+  const curves = [...(song.ties ?? []).map(link => ({link, element: 'tie'})), ...(song.slurs ?? []).map(link => ({link, element: 'slur'}))];
+  for (const {link, element} of curves) {
+    const start = heads.get(link.from)?.at(-1), end = heads.get(link.to)?.[0];
+    if (!start || !end) continue;
+    const bar = headBar.get(start)!;
+    links.set(bar, (links.get(bar) ?? '') + '<' + element + ' staff="' + (link.track + 1) + '" startid="#' + start + '" endid="#' + end + '"/>');
+  }
+  section = section.replace(/<!--links-(\d+)-->/g, (_, bar: string) => links.get(Number(bar)) ?? '');
   const mei = '<mei xmlns="http://www.music-encoding.org/ns/mei" meiversion="5.0">' +
     '<meiHead><fileDesc><titleStmt><title>' + escape(song.title) +
     '</title></titleStmt><pubStmt/></fileDesc></meiHead><music><body><mdiv><score>' + initial + '<section>' + section + '</section></score></mdiv></body></music></mei>';
-  return {mei,measures,timing};
+  return {mei,measures,timing,owners,heads};
 }
 
 /** Loads Verovio and returns a function that engraves a song. */
@@ -290,8 +313,8 @@ export async function createEngraver(): Promise<Engraver> {
   };
   return (song, mode) => {
     toolkit.setOptions(spacing[mode === 'none' ? 'plain' : 'labelled']);
-    const {mei, measures, timing} = encodeScore(song, mode);
+    const {mei, measures, timing, owners, heads} = encodeScore(song, mode);
     if (!toolkit.loadData(mei)) throw new Error('Could not engrave this MIDI score.');
-    return {svg: toolkit.renderToSVG(1), measures, timing};
+    return {svg: toolkit.renderToSVG(1), measures, timing, owners, heads};
   };
 }

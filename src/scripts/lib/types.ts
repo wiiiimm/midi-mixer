@@ -10,6 +10,8 @@ export interface Note {
   e: number;
   lyric?: string;
   lyricCues?: LyricCue[];
+  /** In an edited song: the ids of the edit notes this note was built from (several when tied). */
+  src?: number[];
 }
 
 export interface LyricCue { q: number; text: string }
@@ -49,6 +51,15 @@ export interface Song {
   seconds(q: number): number;
   beat(seconds: number): number;
   keyAt(q: number): KeySignature;
+  /** Time signature and key signature changes, kept so an edited song can be rebuilt. */
+  meters: Meter[];
+  keys: KeySignature[];
+  /** In an edited song: the notes as written (tied notes kept apart), with the ties and slurs between them. */
+  engraving?: Track[];
+  ties?: Slur[];
+  slurs?: Slur[];
+  /** The user's edits, when the song differs from its original MIDI file. */
+  edits?: SongEdits;
   /** Set for imported files (IndexedDB key). */
   id?: string;
   /** Remembered mixer settings while the session lasts. */
@@ -69,3 +80,28 @@ export interface PlaybackVoice extends StoppableVoice {
 }
 
 export type StaffLabelMode = 'none' | 'note' | 'noteOctave' | 'solfa';
+
+/** A tie or slur between two written notes of one track. */
+export interface Slur { track: number; from: Note; to: Note }
+
+/**
+ * An editable note. `tie` names the next note of the same pitch it is tied to (played
+ * and engraved as one sustained note); `slur` names a later note it is slurred to.
+ */
+export interface EditNote {
+  id: number;
+  q: number;
+  len: number;
+  p: number;
+  v: number;
+  lyric?: string;
+  lyricCues?: LyricCue[];
+  tie?: number;
+  slur?: number;
+}
+
+/** A song's edits: every note of every track, in the order of the song's tracks. */
+export interface SongEdits {
+  tracks: EditNote[][];
+  nextId: number;
+}
