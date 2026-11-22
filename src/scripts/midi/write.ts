@@ -63,8 +63,17 @@ export function writeMidi(song: Song): Uint8Array<ArrayBuffer> {
     }
     const events: Event[] = [meta(0, 3, text(track.name))];
     if (track.inst !== DRUM_KIT) events.push({tick: 0, order: 1, bytes: [0xc0 | channel, track.inst & 127]});
+    // One channel can't hold two overlapping notes of the same pitch (a reader pairs the
+    // note-offs in order), so a note ends where the next one of its pitch starts.
+    const nextStart = new Map<(typeof track.notes)[number], number>();
+    const byPitch = new Map<number, (typeof track.notes)>();
+    for (const note of [...track.notes].sort((a, b) => a.q - b.q)) {
+      const same = byPitch.get(note.p);
+      if (same) { nextStart.set(same[same.length - 1], tick(note.q)); same.push(note); } else byPitch.set(note.p, [note]);
+    }
     for (const note of track.notes) {
-      const start = tick(note.q), end = Math.max(start + 1, tick(note.q + note.len));
+      const start = tick(note.q);
+      const end = Math.max(start + 1, Math.min(tick(note.q + note.len), nextStart.get(note) ?? Infinity));
       const pitch = Math.max(0, Math.min(127, note.p)), velocity = Math.max(1, Math.min(127, Math.round(note.v * 127)));
       if (note.lyric) events.push(meta(start, 5, text(note.lyric), 2));
       for (const cue of note.lyricCues ?? []) events.push(meta(tick(cue.q), 5, text(cue.text), 2));
