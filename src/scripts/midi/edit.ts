@@ -178,6 +178,53 @@ export function setPitch(edits: SongEdits, ids: readonly number[], pitch: number
   }
 }
 
+/**
+ * Sets the lyric sung on a note, or removes it for an empty text. Returns whether anything changed.
+ * A chord shares one syllable, so the other notes at the same time in the part that carry a lyric follow.
+ */
+export function setLyric(edits: SongEdits, id: number, text: string): boolean {
+  const found = findNote(edits, id), lyric = text.trim();
+  if (!found || (found.note.lyric ?? '') === lyric) return false;
+  for (const note of edits.tracks[found.track]) {
+    if (note !== found.note && (!note.lyric || Math.abs(note.q - found.note.q) > 1e-6)) continue;
+    if (lyric) note.lyric = lyric; else delete note.lyric;
+  }
+  return true;
+}
+
+/** How far a drawn lyric may sit from the beat it was read at, as engraving rounds times. */
+const LYRIC_REACH = .13;
+
+/**
+ * Sets the lyric at a beat within a chain of tied notes: the lyric of the note that starts there, or the
+ * syllable sung there part-way through a note. An empty text removes it. Returns whether anything changed.
+ */
+export function setLyricAt(edits: SongEdits, ids: readonly number[], q: number, text: string): boolean {
+  const lyric = text.trim();
+  let best: {distance: number; set: () => boolean} | undefined;
+  const offer = (at: number, set: () => boolean) => {
+    const distance = Math.abs(at - q);
+    if (distance <= LYRIC_REACH && (!best || distance < best.distance)) best = {distance, set};
+  };
+  for (const id of ids) {
+    const note = findNote(edits, id)?.note;
+    if (!note) continue;
+    offer(note.q, () => setLyric(edits, id, lyric));
+    for (const cue of note.lyricCues ?? []) {
+      offer(cue.q, () => {
+        if (cue.text === lyric) return false;
+        if (lyric) cue.text = lyric;
+        else {
+          note.lyricCues = note.lyricCues!.filter(other => other !== cue);
+          if (!note.lyricCues.length) delete note.lyricCues;
+        }
+        return true;
+      });
+    }
+  }
+  return best ? (best as {set: () => boolean}).set() : false;
+}
+
 /** Whether giving these notes this pitch would put two notes of the same pitch at the same time in a part. */
 export function pitchClashes(edits: SongEdits, ids: readonly number[], pitch: number): boolean {
   const moved = new Set(ids);
