@@ -27,13 +27,37 @@ export function editsFor(song: Song): SongEdits {
 
 export const cloneEdits = (edits: SongEdits): SongEdits => structuredClone(edits);
 
-/** Whether edits can be applied to a song with this many tracks. */
-export const editsFit = (edits: unknown, trackCount: number): edits is SongEdits =>
-  !!edits && typeof edits === 'object' && Array.isArray((edits as SongEdits).tracks) &&
-  (edits as SongEdits).tracks.length === trackCount && Number.isFinite((edits as SongEdits).nextId);
+const validNote = (note: unknown): note is EditNote => {
+  if (!note || typeof note !== 'object') return false;
+  const n = note as EditNote;
+  return Number.isSafeInteger(n.id) && n.id > 0 && Number.isFinite(n.q) && n.q >= 0 && Number.isFinite(n.len) && n.len > 0 &&
+    Number.isInteger(n.p) && n.p >= 0 && n.p <= 127 && Number.isFinite(n.v) &&
+    (n.tie === undefined || Number.isSafeInteger(n.tie)) && (n.slur === undefined || Number.isSafeInteger(n.slur)) &&
+    (n.lyric === undefined || typeof n.lyric === 'string') && (n.lyricCues === undefined || Array.isArray(n.lyricCues));
+};
 
+/** Whether saved edits are well formed and can be applied to a song with this many tracks. */
+export function editsFit(edits: unknown, trackCount: number): edits is SongEdits {
+  if (!edits || typeof edits !== 'object') return false;
+  const {tracks, nextId} = edits as SongEdits;
+  if (!Array.isArray(tracks) || tracks.length !== trackCount || !Number.isSafeInteger(nextId)) return false;
+  const ids = new Set<number>();
+  for (const notes of tracks) {
+    if (!Array.isArray(notes)) return false;
+    for (const note of notes) {
+      if (!validNote(note) || ids.has(note.id) || note.id >= nextId) return false;
+      ids.add(note.id);
+    }
+  }
+  return true;
+}
+
+/** How far a note may run into the note it is tied to (MIDI files often overlap slightly). */
+const TIE_OVERLAP = 1 / 16;
+
+/** A tie joins a note to a later note of the same pitch that starts once it has ended. */
 const tieValid = (from: EditNote, to: EditNote | undefined): to is EditNote =>
-  !!to && to !== from && to.p === from.p && to.q > from.q + 1e-6;
+  !!to && to !== from && to.p === from.p && to.q > from.q + 1e-6 && from.q + from.len <= to.q + TIE_OVERLAP;
 
 /**
  * Builds the song for a set of edits, on top of the original song. Its tracks hold the
@@ -154,7 +178,14 @@ export function setPitch(edits: SongEdits, ids: readonly number[], pitch: number
   }
 }
 
-export type LinkResult = 'tie' | 'slur' | 'other-part' | 'same-note';
+/** Whether giving these notes this pitch would put two notes of the same pitch at the same time in a part. */
+export function pitchClashes(edits: SongEdits, ids: readonly number[], pitch: number): boolean {
+  const moved = new Set(ids);
+  return edits.tracks.some(notes => notes.some(note => moved.has(note.id) &&
+    notes.some(other => !moved.has(other.id) && other.p === pitch && Math.abs(other.q - note.q) < 1e-6)));
+}
+
+export type LinkResult = 'tie' | 'slur' | 'other-part' | 'same-note' | 'overlap';
 
 /**
  * Links two notes of one part: a tie when they share a pitch, a slur when they don't.
@@ -168,6 +199,7 @@ export function linkNotes(edits: SongEdits, a: number, b: number): LinkResult {
   if (to.q < from.q) [from, to] = [to, from];
   if (Math.abs(to.q - from.q) < 1e-6) return 'same-note';
   if (from.p === to.p) {
+    if (!tieValid(from, to)) return 'overlap';
     // A note can only be tied onward once; move an existing tie into the new one.
     for (const note of edits.tracks[first.track]) if (note.tie === to.id) delete note.tie;
     from.tie = to.id;
@@ -212,7 +244,9 @@ export function staffStep(pitch: number, sf: number): number {
 /** The pitch on a staff step in a key signature (sharpened or flattened as the key says). */
 export function pitchAtStep(step: number, sf: number): number {
   const octave = Math.floor(step / 7), letter = letters[((step % 7) + 7) % 7];
-  const shift = sf > 0 && sharpOrder.slice(0, sf).includes(letter) ? 1 : sf < 0 && flatOrder.slice(0, -sf).includes(letter) ? -1 : 0;
+  let shift = sf > 0 && sharpOrder.slice(0, sf).includes(letter) ? 1 : sf < 0 && flatOrder.slice(0, -sf).includes(letter) ? -1 : 0;
+  // The app spells notes without E♯, B♯, C♭ or F♭, so those steps take the natural note, which is drawn on the same step.
+  if ((shift > 0 && 'EB'.includes(letter)) || (shift < 0 && 'CF'.includes(letter))) shift = 0;
   return Math.max(0, Math.min(127, (octave + 1) * 12 + letterSemitones[letter] + shift));
 }
 

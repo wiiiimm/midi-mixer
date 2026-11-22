@@ -127,6 +127,11 @@ export function resetTransport(song: Song): void {
 export function updateSongInfo(song: Song): void {
   const lastBar = String(song.bars.length - 1);
   input('startBar').max = input('a').max = input('b').max = lastBar;
+  // An edit can shorten the song, so keep the bar fields inside it.
+  for (const id of ['startBar', 'a', 'b']) {
+    const field = input(id);
+    if (Number(field.value) > Number(lastBar)) field.value = lastBar;
+  }
   input('seek').max = String(song.duration);
   $('title').textContent = song.title;
   $('meta').textContent = song.tracks.length + ' tracks　·　' + (song.bars.length - 1) + ' bars' + (song.edits ? '　·　Edited' : '');

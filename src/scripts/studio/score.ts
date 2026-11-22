@@ -72,7 +72,7 @@ export const followEnabled = (): boolean => $('followScore').getAttribute('aria-
 export const scrubEnabled = (): boolean => $('scrubScore').getAttribute('aria-pressed') === 'true';
 export const editEnabled = (): boolean => $('editScore').getAttribute('aria-pressed') === 'true';
 let onRendered: () => void = () => {};
-/** Calls back after every engraving (for example to restore the editor's selection). */
+/** Calls back after every render, engraved or not (for example to restore the editor's selection). */
 export const onScoreRendered = (listener: () => void): void => { onRendered = listener; };
 
 export function setEngraver(engraver: Engraver): void {
@@ -116,6 +116,7 @@ export function renderScore(keepView = false): void {
   viewport().hidden = $('engravedTitle').hidden = true;
   $('score').removeAttribute('hidden');
   renderFallback(song);
+  onRendered();
 }
 
 function renderEngraved(song: Song, mode: StaffLabelMode, engraver: Engraver, keepView: boolean) {

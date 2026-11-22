@@ -36,7 +36,7 @@ const meta = (tick: number, type: number, payload: number[], order = 0): Event =
   ({tick, order, bytes: [0xff, type, ...variableLength(payload.length), ...payload]});
 
 /** Encodes a song as MIDI file bytes. */
-export function writeMidi(song: Song): Uint8Array {
+export function writeMidi(song: Song): Uint8Array<ArrayBuffer> {
   const tick = (q: number) => Math.max(0, Math.round(q * PPQ));
   const conductor: Event[] = [meta(0, 3, text(song.title))];
   for (const tempo of song.tempos) {

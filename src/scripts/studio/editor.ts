@@ -3,7 +3,7 @@ import { pitchNameWithOctave } from '../lib/notes';
 import { shortcutsBlocked } from '../lib/shortcuts';
 import type { Song, SongEdits } from '../lib/types';
 import {
-  addNote, applyEdits, cloneEdits, editsFor, findNote, hasLinks, linkNotes, noteCount, pitchAtStep, removeNotes,
+  addNote, applyEdits, cloneEdits, editsFor, findNote, hasLinks, linkNotes, noteCount, pitchAtStep, pitchClashes, removeNotes,
   setPitch, stepPitch, tieChain, unlinkNotes, writtenTracks,
 } from '../midi/edit';
 import { DRUM_KIT, usesBassClef } from '../midi/parse';
@@ -236,6 +236,7 @@ function joinNotes(a: ScoreNoteHit, b: ScoreNoteHit) {
   });
   if (result === 'other-part') notify('Ties and slurs join notes in the same part.');
   else if (result === 'same-note') notify('Ties and slurs join notes that start at different times.');
+  else if (result === 'overlap') notify('A tie joins a note to one that starts after it ends.');
   else if (result === 'tie') notify('Tied: the notes now play as one sustained note.');
   else if (result === 'slur') notify('Slurred.');
   select(from);
@@ -272,7 +273,11 @@ function moveSelected(amount: number, semitones: boolean) {
   const pitch = semitones ? hit.note.p + amount : stepPitch(hit.note.p, amount, song.keyAt(hit.note.q).sf);
   if (pitch === hit.note.p || pitch < 0 || pitch > 127) return;
   const ids = selected;
-  if (commit(edits => setPitch(edits, ids, pitch))) {
+  if (commit(edits => {
+    if (!pitchClashes(edits, ids, pitch)) return setPitch(edits, ids, pitch);
+    notify('This part already has a ' + pitchNameWithOctave(pitch, song.keyAt(hit.note.q).sf) + ' at the same time.');
+    return false;
+  })) {
     keepSelection();
     void previewNote(hit.track, pitch);
   }
@@ -347,12 +352,24 @@ function cancelGesture() {
   gesture = undefined;
 }
 
+/**
+ * Whether a tap was on the note itself rather than on the staff beside it. A drag can
+ * start anywhere near a note, but a tap a line or space away from it adds a note there.
+ */
+function tappedNote(hit: ScoreNoteHit, x: number, y: number, spacing: number, touch: boolean): boolean {
+  const head = scoreNoteElements(hit.note)
+    .map(element => element.querySelector('.notehead')?.getBoundingClientRect())
+    .find(box => box && x >= box.left - (touch ? spacing : 3) && x <= box.right + (touch ? spacing : 3));
+  return !!head && Math.abs(y - (head.top + head.height / 2)) < spacing / 2;
+}
+
 function finishGesture(event: PointerEvent) {
   const ended = gesture;
   if (!ended || event.pointerId !== ended.pointer) return;
   if (!ended.moved) {
     cancelGesture();
-    if (ended.hit) tapNote(ended.hit);
+    const onNote = ended.hit && (linking || tappedNote(ended.hit, event.clientX, event.clientY, ended.spacing, event.pointerType === 'touch'));
+    if (ended.hit && onNote) tapNote(ended.hit);
     else if (linking) { linking = false; refreshControls(); }
     else addAt(event.clientX, event.clientY);
     return;
@@ -374,7 +391,15 @@ export function initEditor(): void {
   $('editScore').addEventListener('click', () => setEditing(!editEnabled()));
   // Scrub and edit both use presses on the score, so only one can be on.
   $('scrubScore').addEventListener('click', () => { if (scrubEnabled() && editEnabled()) setEditing(false); });
-  onScoreRendered(() => { highlight(); refreshControls(); });
+  onScoreRendered(() => {
+    // Editing needs the engraved score; if a song falls back to the plain one, leave Edit mode.
+    if (editEnabled() && !scoreEngraved()) {
+      setEditing(false);
+      notify('This song can’t be engraved, so it can’t be edited.');
+    }
+    highlight();
+    refreshControls();
+  });
 
   button('editDown').addEventListener('click', () => moveSelected(-1, true));
   button('editUp').addEventListener('click', () => moveSelected(1, true));
@@ -393,7 +418,10 @@ export function initEditor(): void {
     h.undo.push(before);
     h.redo = [];
     refreshControls();
-    notify('Reset to the original MIDI.', 'Undo', undo);
+    // Undo from the toast only while the reset is still the latest change to this song.
+    notify('Reset to the original MIDI.', 'Undo', () => {
+      if (studio.song === h.song && history === h && h.undo.at(-1) === before) undo();
+    });
   });
   $('editLength').addEventListener('change', setSelectedLength);
   button('editDownload').addEventListener('click', () => { if (studio.song) downloadMidi(studio.song); });
