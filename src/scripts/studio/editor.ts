@@ -243,6 +243,8 @@ let lyricNote: number | undefined;
 let lyricOpen = false;
 /** The notes (one, or a chain of tied ones) and the beat of the lyric in the field. */
 let lyricIds: number[] = [], lyricAt = 0;
+/** The song the lyric in the field belongs to: a draft is never written to another song. */
+let lyricSong: Song | null = null;
 /** The beat of the lyric to open next: a tied or long note can carry several. */
 let lyricWanted: number | undefined;
 
@@ -262,6 +264,7 @@ function showLyric(hit: ScoreNoteHit | undefined) {
     lyricAt = lyricWanted ?? hit.note.q;
     lyricWanted = undefined;
     lyricIds = [...selected];
+    lyricSong = studio.song;
     // A tie chain is selected through its first note, but the lyric may belong to a later one.
     const edits = studio.song?.edits;
     const lyric = (edits && lyricTextAt(edits, lyricIds, lyricAt)) ?? lyricText(hit.note, lyricAt);
@@ -269,7 +272,17 @@ function showLyric(hit: ScoreNoteHit | undefined) {
     input.value = lyric;
     input.dataset.saved = lyric;
   }
-  placeLyric(hit);
+  placeLyric(lyricHit(hit));
+}
+
+/** The written note of the selection that the lyric in the field is sung on: a later note of a tie chain carries its own. */
+function lyricHit(hit: ScoreNoteHit): ScoreNoteHit {
+  let best = hit;
+  for (const id of lyricIds) {
+    const other = scoreNoteFromSource(id);
+    if (other && other.note.q <= lyricAt + .13 && other.note.q > best.note.q) best = other;
+  }
+  return best;
 }
 
 /** Puts the Lyric field over the note's lyric on the score, or where one would be drawn. */
@@ -362,6 +375,8 @@ function closeLyric() {
 function commitLyric() {
   const input = lyricInput(), ids = lyricIds, at = lyricAt;
   if (lyricNote === undefined || input.value.trim() === (input.dataset.saved ?? '')) return;
+  // A song was chosen while the field was open: its draft belongs to the song it was typed for.
+  if (studio.song !== lyricSong) return;
   const text = input.value;
   input.dataset.saved = text.trim();
   commit(edits => setLyricAt(edits, ids, at, text));
@@ -441,7 +456,7 @@ function placement(clientX: number, clientY: number) {
   // A dotted value snaps like its plain one, so a dotted quaver can start on any quaver.
   const grid = Math.min(value, 4 / bar.d);
   // Snap to a grid position inside the bar, even when the last bar is short or ends off the grid.
-  const slots = Math.max(1, Math.floor((end - bar.q) / grid + 1e-6));
+  const slots = Math.max(1, Math.ceil((end - bar.q) / grid - 1e-6));
   const q = bar.q + Math.min(slots - 1, Math.max(0, Math.round((staff.beat - bar.q) / grid))) * grid;
   const sf = song.keyAt(q).sf, topLine = usesBassClef(track) ? 26 : 38; // A3 or F5
   return {staff, track, q, length, sf, pitch: pitchAtStep(topLine + staff.offset, sf), drums: track.inst === DRUM_KIT};
@@ -477,7 +492,7 @@ function addAfterSelected(pitch: number) {
   if (track.inst === DRUM_KIT) return;
   // Notes from a MIDI file rarely end exactly on the beat, so start on the nearest demisemiquaver
   // (fine enough for a dotted semiquaver's end).
-  const q = Math.max(Math.round((last.note.q + last.note.len) * 8) / 8, last.note.q + .125);
+  const q = Math.max(Math.round((last.note.q + last.note.len) * 8) / 8, Math.ceil((last.note.q + .125) * 8 - 1e-6) / 8);
   const existing = track.notes.find(note => same(note.q, q) && note.p === pitch);
   if (existing?.src) select(existing.src);
   else {

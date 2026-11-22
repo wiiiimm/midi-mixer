@@ -56,10 +56,12 @@ export function writeMidi(song: Song): Uint8Array<ArrayBuffer> {
   // own channel while they last, so one part's note-off can't end another's note. A song
   // with more than 15 melodic parts shares channels between parts with the same instrument
   // (a player has one instrument per channel); past 15 instruments, channels have to double up.
-  const melodic = song.tracks.filter(track => track.inst !== DRUM_KIT).length;
+  // A part with no notes left is not written, as reading the file back would drop it anyway.
+  const tracks = song.tracks.filter(track => track.notes.length > 0);
+  const melodic = tracks.filter(track => track.inst !== DRUM_KIT).length;
   const channelOf = new Map<number, number>();
   let nextChannel = 0;
-  const parts = song.tracks.map(track => {
+  const parts = tracks.map(track => {
     let channel = 9;
     if (track.inst !== DRUM_KIT) {
       const inst = track.inst & 127;
@@ -74,19 +76,25 @@ export function writeMidi(song: Song): Uint8Array<ArrayBuffer> {
     const events: Event[] = [meta(0, 3, text(track.name))];
     if (track.inst !== DRUM_KIT) events.push({tick: 0, order: 1, bytes: [0xc0 | channel, track.inst & 127]});
     // One channel can't hold two overlapping notes of the same pitch (a reader pairs the
-    // note-offs in order), so a note ends where the next one of its pitch starts.
-    const nextStart = new Map<(typeof track.notes)[number], number>();
-    const byPitch = new Map<number, (typeof track.notes)>();
+    // note-offs in order), so a note ends where the next one of its pitch starts, and notes of
+    // the same pitch starting together sound as one, held for the longest of them.
+    const ends = new Map<(typeof track.notes)[number], number>();
+    const last = new Map<number, (typeof track.notes)[number]>();
     for (const note of [...track.notes].sort((a, b) => a.q - b.q)) {
-      const same = byPitch.get(note.p);
-      if (same) { nextStart.set(same[same.length - 1], tick(note.q)); same.push(note); } else byPitch.set(note.p, [note]);
+      const start = tick(note.q), end = tick(note.q + note.len), before = last.get(note.p);
+      if (before && tick(before.q) === start) { ends.set(before, Math.max(ends.get(before)!, end)); continue; }
+      if (before) ends.set(before, Math.min(ends.get(before)!, start));
+      ends.set(note, end);
+      last.set(note.p, note);
     }
     for (const note of track.notes) {
       const start = tick(note.q);
-      const end = Math.max(start + 1, Math.min(tick(note.q + note.len), nextStart.get(note) ?? Infinity));
-      const pitch = Math.max(0, Math.min(127, note.p)), velocity = Math.max(1, Math.min(127, Math.round(note.v * 127)));
       if (note.lyric) events.push(meta(start, 5, text(note.lyric), 2));
       for (const cue of note.lyricCues ?? []) events.push(meta(tick(cue.q), 5, text(cue.text), 2));
+      const written = ends.get(note);
+      if (written === undefined) continue;
+      const end = Math.max(start + 1, written);
+      const pitch = Math.max(0, Math.min(127, note.p)), velocity = Math.max(1, Math.min(127, Math.round(note.v * 127)));
       events.push({tick: start, order: 3, bytes: [0x90 | channel, pitch, velocity]});
       events.push({tick: end, order: 0, bytes: [0x80 | channel, pitch, 0]});
     }
