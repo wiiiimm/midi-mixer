@@ -178,11 +178,17 @@ export function setPitch(edits: SongEdits, ids: readonly number[], pitch: number
   }
 }
 
-/** Sets the lyric sung on a note, or removes it for an empty text. Returns whether anything changed. */
+/**
+ * Sets the lyric sung on a note, or removes it for an empty text. Returns whether anything changed.
+ * A chord shares one syllable, so the other notes at the same time in the part that carry a lyric follow.
+ */
 export function setLyric(edits: SongEdits, id: number, text: string): boolean {
-  const note = findNote(edits, id)?.note, lyric = text.trim();
-  if (!note || (note.lyric ?? '') === lyric) return false;
-  if (lyric) note.lyric = lyric; else delete note.lyric;
+  const found = findNote(edits, id), lyric = text.trim();
+  if (!found || (found.note.lyric ?? '') === lyric) return false;
+  for (const note of edits.tracks[found.track]) {
+    if (note !== found.note && (!note.lyric || Math.abs(note.q - found.note.q) > 1e-6)) continue;
+    if (lyric) note.lyric = lyric; else delete note.lyric;
+  }
   return true;
 }
 
