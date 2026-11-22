@@ -462,7 +462,9 @@ export function initEditor(): void {
     if (!(event.target as Element).closest('#engravedScore')) return;
     const staff = scoreStaffAt(event.clientX, event.clientY);
     const radius = Math.max(event.pointerType === 'touch' ? 22 : 12, (staff?.spacing ?? 8) * 1.2);
-    const hit = scoreNoteNear(event.clientX, event.clientY, radius);
+    let hit = scoreNoteNear(event.clientX, event.clientY, radius);
+    // Drum notes can't be edited: a tap on one says so (through addAt) and a drag scrolls.
+    if (hit && writtenTracks(studio.song)[hit.track]?.inst === DRUM_KIT) hit = undefined;
     gesture = {
       pointer: event.pointerId, x: event.clientX, y: event.clientY, hit, spacing: staff?.spacing ?? 8,
       moved: false, steps: 0, scrollTop: workspace().scrollTop,
